@@ -1,0 +1,13 @@
+services:
+  business:
+    build: 
+      context: .
+      dockerfile: apps/business/Dockerfile
+    ports:
+    - "7010:3000"
+    environment:
+      NEXT_PUBLIC_URL_BACK_END: http://server:3333
+  server_old:
+    build:
+      context: .
+      dockerfile: apps/server.old/Dockerfile

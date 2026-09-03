@@ -1,0 +1,35 @@
+FROM oven/bun:latest AS base
+
+WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends openssl && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+FROM base AS deps
+COPY package.json bun.lock ./
+COPY apps/server.old/package.json ./apps/server.old/package.json
+# COPY package.json bun.lock* prisma.config.ts *d.ts tsconfig.json config.ts types.ts ./
+RUN bun install --filter server.old --frozen-lockfile
+
+FROM base AS builder
+WORKDIR /app
+
+ARG DATABASE_URL=postgresql://localhost:5432/dummy
+ENV DATABASE_URL=${DATABASE_URL}
+
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/apps/server.old/node_modules ./apps/server.old/node_modules
+COPY apps/server.old ./apps/server.old
+
+WORKDIR /app/apps/server.old
+RUN bunx prisma generate
+
+FROM base AS runner
+WORKDIR /app/apps/server.old
+COPY --from=builder /app/apps/server.old ./
+COPY --from=builder /app/node_modules /app/node_modules
+USER 1001:1001
+
+EXPOSE 3333
+
+CMD ["bun","run", "dev"]

@@ -1,0 +1,59 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client"
+  output   = "./generated"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model GoogleTokens {
+  id     Int  @id @default(autoincrement())
+  tokens Json
+}
+
+model Archives {
+  cuid        String   @id @default(cuid())
+  title       String
+  size        String
+  type        String
+  path        String
+  pathUrl     String
+  createdCuid String
+  updatedCuid String
+  ownerCuid   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  owner     User @relation("ownerArchives", fields: [ownerCuid], references: [id])
+  createdBy User @relation("createdArchives", fields: [createdCuid], references: [id])
+  updatedBy User @relation("updatedArchives", fields: [updatedCuid], references: [id])
+
+  transaction  Transactions[]
+  equipments   Equipment[]
+  installments Installment[]
+}
+
+model Supplier {
+  id        Int    @id @default(autoincrement())
+  name      String @unique
+  purchases Cart[]
+}
+
+model Company {
+  id        Int      @id @default(autoincrement())
+  name      String
+  cnpj      String
+  ownerCuid String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  owner        User           @relation(fields: [ownerCuid], references: [id])
+  transactions Transactions[]
+}

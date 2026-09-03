@@ -1,0 +1,24 @@
+{
+  "name": "fieldlink",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev:server": "bun run --filter server dev",
+    "dev:business": "bun run --filter business dev",
+    "build": "bun run --filter '*' build",
+
+    "business:start": "bun run --filter business start",
+    "business:build": "bun run --filter business build",
+    "business:dev": "bun run --filter business dev"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  }
+}

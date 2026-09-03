@@ -1,0 +1,11 @@
+services:
+  
+    development:
+      build:
+        context: .
+        dockerfile: Dockerfile
+      ports:
+        - "3000:3000"
+      environment:
+        NEXT_PUBLIC_URL_BACK_END: http://server:3333
+          
