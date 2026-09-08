@@ -1,0 +1,25 @@
+FROM oven/bun:slim AS base
+
+# --------- Production builder ---------
+FROM oven/bun:slim AS builder
+WORKDIR /monorepo
+
+COPY package.json bun.lock ./
+COPY apps/dashboard/package.json apps/dashboard/
+COPY --parents apps/*/package.json ./
+
+RUN bun install --frozen-lockfile
+
+COPY apps/dashboard apps/dashboard
+
+RUN bun run --filter=dashboard build
+
+# --------- Production ---------
+FROM node:24-alpine AS prod
+WORKDIR /monorepo
+
+COPY --from=builder /monorepo/apps/dashboard/.next/standalone ./
+COPY --from=builder /monorepo/apps/dashboard/public ./apps/dashboard/public
+COPY --from=builder /monorepo/apps/dashboard/.next/static ./apps/dashboard/.next/static
+
+CMD ["node","apps/dashboard/server.js"]

@@ -88,7 +88,7 @@ const PropertiesField = ({ fieldInstance }: { fieldInstance: FormFieldInstance }
 
     const { updateField } = useFormBuilder()
     const element = fieldInstance as CustomInstance
-    const form = useForm<FieldSchema>({ resolver: zodResolver(fieldSchema), mode: 'onBlur', defaultValues: { ...element.extraAttributes } })
+    const form = useForm<FieldSchema>({ resolver: zodResolver(fieldSchema as any), mode: 'onBlur', defaultValues: { ...element.extraAttributes } })
 
     const applyChanges = (values: FieldSchema) => {
         updateField(element._id, { ...element, extraAttributes: values })

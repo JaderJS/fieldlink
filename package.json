@@ -13,12 +13,19 @@
 
     "business:start": "bun run --filter business start",
     "business:build": "bun run --filter business build",
-    "business:dev": "bun run --filter business dev"
+    "business:dev": "bun run --filter business dev",
+
+    "dashboard:dev": "bun run --filter dashboard dev",
+    "dashboard:build": "bun run --filter dashboard build"
   },
   "devDependencies": {
     "@types/bun": "latest"
   },
   "peerDependencies": {
     "typescript": "^5"
+  },
+  "overrides": {
+    "dashboard>zod": "3.25.76",
+    "dashboard>@hookform/resolvers": "3.10.0"
   }
 }

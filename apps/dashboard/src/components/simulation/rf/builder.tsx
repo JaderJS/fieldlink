@@ -49,7 +49,7 @@ const Builder = ({ nodes, selectNode, setNodes, onChange }: BuilderProps) => {
     const { updateNodeData } = useReactFlow()
     const data = selectNode?.data as DataProps
 
-    const { register, setValue, handleSubmit, watch, reset } = useForm<BuilderSchema>({ resolver: zodResolver(builderSchema) })
+    const { register, setValue, handleSubmit, watch, reset } = useForm<BuilderSchema>({ resolver: zodResolver(builderSchema as any) })
 
     const handleBuilder = (data: BuilderSchema) => {
         console.log(data.type)

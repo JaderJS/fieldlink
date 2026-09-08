@@ -1,5 +1,6 @@
-FROM oven/bun:latest AS base
-
+FROM oven/bun:slim AS base
+ 
+# --------- Production builder ---------
 WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends openssl && \
     apt-get clean && \
@@ -8,9 +9,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends openssl && \
 FROM base AS deps
 COPY package.json bun.lock ./
 COPY apps/server.old/package.json ./apps/server.old/package.json
-# COPY package.json bun.lock* prisma.config.ts *d.ts tsconfig.json config.ts types.ts ./
-RUN bun install --filter server.old --frozen-lockfile
+COPY --parents apps/*/package.json ./
 
+RUN bun install --filter=server.old --frozen-lockfile
+
+# --------- Production ---------
 FROM base AS builder
 WORKDIR /app
 

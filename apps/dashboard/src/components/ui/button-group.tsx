@@ -40,6 +40,9 @@ function ButtonGroup({
 function ButtonGroupText({
   className,
   asChild = false,
+  popover,
+  ref,
+  key,
   ...props
 }: React.ComponentProps<"div"> & {
   asChild?: boolean
@@ -52,6 +55,9 @@ function ButtonGroupText({
         "bg-muted shadow-xs flex items-center gap-2 rounded-md border px-4 text-sm font-medium [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none",
         className
       )}
+      ref={ref as any}
+      popover={popover as any}
+      key={key as any}
       {...props}
     />
   )

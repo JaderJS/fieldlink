@@ -160,7 +160,7 @@ const CommandEmpty = ({
       className={cn("px-2 py-4 text-center text-sm", className)}
       cmdk-empty=""
       role="presentation"
-      {...props}
+      {...props as any}
     />
   )
 }
@@ -413,7 +413,7 @@ const MultipleSelector = ({
   return (
     <Command
       ref={dropdownRef}
-      {...commandProps}
+      {...commandProps as any}
       onKeyDown={(e) => {
         handleKeyDown(e)
         commandProps?.onKeyDown?.(e)
@@ -427,7 +427,7 @@ const MultipleSelector = ({
           ? commandProps.shouldFilter
           : !onSearch
       } // When onSearch is provided, we don&lsquo;t want to filter the options. You can still override it.
-      filter={commandFilter()}
+      filter={commandFilter() as any}
     >
       <div
         className={cn(
@@ -478,7 +478,7 @@ const MultipleSelector = ({
           })}
           {/* Avoid having the "Search" Icon */}
           <CommandPrimitive.Input
-            {...inputProps}
+            {...inputProps as any}
             ref={inputRef}
             value={inputValue}
             disabled={disabled}

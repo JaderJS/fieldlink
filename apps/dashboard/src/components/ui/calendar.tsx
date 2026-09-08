@@ -125,12 +125,13 @@ function Calendar({
         ...classNames,
       }}
       components={{
-        Root: ({ className, rootRef, ...props }) => {
+        Root: ({ className, rootRef, popover, ...props }) => {
           return (
             <div
               data-slot="calendar"
-              ref={rootRef}
+              ref={rootRef as any}
               className={cn(className)}
+              popover={popover as any}
               {...props}
             />
           )
@@ -158,7 +159,7 @@ function Calendar({
         DayButton: CalendarDayButton,
         WeekNumber: ({ children, ...props }) => {
           return (
-            <td {...props}>
+            <td {...props as any}>
               <div className="flex size-(--cell-size) items-center justify-center text-center">
                 {children}
               </div>
@@ -205,7 +206,7 @@ function CalendarDayButton({
         defaultClassNames.day,
         className
       )}
-      {...props}
+      {...props as any}
     />
   )
 }

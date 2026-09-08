@@ -55,7 +55,7 @@ const UpsertTransactions = ({ transaction }: { transaction?: Pick<Transaction, "
     })
 
     const form = useForm<UpsertTransactionSchema>({
-        resolver: zodResolver(upsertTransactionSchema),
+        resolver: zodResolver(upsertTransactionSchema as any),
         // defaultValues: !!transaction ? {
         //     id: data?.id,
         //     title: data?.title,

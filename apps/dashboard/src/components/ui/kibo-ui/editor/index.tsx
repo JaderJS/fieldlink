@@ -603,7 +603,7 @@ export const EditorProvider = ({
     Slash.configure({
       suggestion: {
         items: async ({ editor, query }) => {
-          const items = await defaultSlashSuggestions({ editor, query });
+          const items = await defaultSlashSuggestions({ editor, query } as any);
 
           if (!query) {
             return items;

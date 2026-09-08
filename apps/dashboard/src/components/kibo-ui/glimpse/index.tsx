@@ -28,7 +28,7 @@ export const GlimpseTrigger = (props: GlimpseTriggerProps) => (
 
 export type GlimpseTitleProps = ComponentProps<"p">;
 
-export const GlimpseTitle = ({ className, ...props }: GlimpseTitleProps) => {
+export const GlimpseTitle = ({ className, ref, ...props }: GlimpseTitleProps) => {
   return (
     <p className={cn("truncate font-semibold text-sm", className)} {...props} />
   );
@@ -38,6 +38,7 @@ export type GlimpseDescriptionProps = ComponentProps<"p">;
 
 export const GlimpseDescription = ({
   className,
+  ref,
   ...props
 }: GlimpseDescriptionProps) => {
   return (
@@ -53,6 +54,7 @@ export type GlimpseImageProps = ComponentProps<"img">;
 export const GlimpseImage = ({
   className,
   alt,
+  ref,
   ...props
 }: GlimpseImageProps) => (
   // biome-ignore lint/performance/noImgElement: "Kibo UI is framework agnostic"

@@ -1,0 +1,51 @@
+$ bun run --filter dashboard build
+dashboard build:    ▲ Next.js 15.3.5
+dashboard build:    - Environments: .env
+dashboard build: 
+dashboard build:    Creating an optimized production build ...
+dashboard build: Failed to compile.
+dashboard build: 
+dashboard build: ./src/features/cart/components/upsert.cart.tsx
+dashboard build: Module not found: Can't resolve 'lodash/debounce'
+dashboard build: 
+dashboard build: https://nextjs.org/docs/messages/module-not-found
+dashboard build: 
+dashboard build: ./src/features/doc/components/upsert.doc.tsx
+dashboard build: Module not found: Can't resolve 'lodash/debounce'
+dashboard build: 
+dashboard build: https://nextjs.org/docs/messages/module-not-found
+dashboard build: 
+dashboard build: ./src/features/editor/index.tsx
+dashboard build: Module not found: Can't resolve '@tiptap/extension-list-item'
+dashboard build: 
+dashboard build: https://nextjs.org/docs/messages/module-not-found
+dashboard build: 
+dashboard build: Import trace for requested module:
+dashboard build: ./src/features/transaction/services/cells.tsx
+dashboard build: ./src/features/transaction/services/columns.ts
+dashboard build: ./src/features/transaction/components/view.transactions.tsx
+dashboard build: 
+dashboard build: ./src/features/editor/index.tsx
+dashboard build: Module not found: Can't resolve '@tiptap/extension-ordered-list'
+dashboard build: 
+dashboard build: https://nextjs.org/docs/messages/module-not-found
+dashboard build: 
+dashboard build: Import trace for requested module:
+dashboard build: ./src/features/transaction/services/cells.tsx
+dashboard build: ./src/features/transaction/services/columns.ts
+dashboard build: ./src/features/transaction/components/view.transactions.tsx
+dashboard build: 
+dashboard build: ./src/features/editor/index.tsx
+dashboard build: Module not found: Can't resolve '@tiptap/extension-bullet-list'
+dashboard build: 
+dashboard build: https://nextjs.org/docs/messages/module-not-found
+dashboard build: 
+dashboard build: Import trace for requested module:
+dashboard build: ./src/features/transaction/services/cells.tsx
+dashboard build: ./src/features/transaction/services/columns.ts
+dashboard build: ./src/features/transaction/components/view.transactions.tsx
+dashboard build: 
+dashboard build: 
+dashboard build: > Build failed because of webpack errors
+dashboard build: Exited with code 1
+error: script "dashboard:build" exited with code 1

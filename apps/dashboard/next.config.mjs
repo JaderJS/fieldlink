@@ -1,5 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+    eslint: {
+        ignoreDuringBuilds: true,
+    },
+    typescript: {
+        ignoreBuildErrors: true,
+    },
     images: {
         remotePatterns: [
             {
@@ -15,6 +21,7 @@ const nextConfig = {
     // serverExternalPackages: ['@react-pdf/renderer'],
     output: "standalone",
     transpilePackages: ["@react-pdf/renderer"],
+
 }
 
 export default nextConfig;

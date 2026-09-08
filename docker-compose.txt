@@ -1,18 +1,4 @@
-name: debug
 services:
-  dashboard:
-    build:
-      context: .
-      dockerfile: apps/dashboard/Dockerfile.prod
-      args:
-        BACKEND_URL: ${BACKEND_URL} 
-        NEXT_INTERNAL_BACKEND_URL: ${NEXT_INTERNAL_BACKEND_URL} 
-    ports:
-    - "7011:3000"
-    environment:
-      BACKEND_URL: ${BACKEND_URL}
-      NEXT_INTERNAL_BACKEND_URL: ${NEXT_INTERNAL_BACKEND_URL}
-
   business:
     build: 
       context: .
@@ -21,6 +7,19 @@ services:
     - "7010:3000"
     environment:
       NEXT_PUBLIC_URL_BACK_END: http://server:3333
+
+  dashboard: 
+    build: 
+      context: . 
+      dockerfile: apps/dashboard/Dockerfile 
+      args: 
+        BACKEND_URL: ${BACKEND_URL} 
+        NEXT_INTERNAL_BACKEND_URL: ${NEXT_INTERNAL_BACKEND_URL} 
+    ports: 
+      - "7011:3000" 
+    environment: 
+      BACKEND_URL: ${BACKEND_URL} 
+      NEXT_INTERNAL_BACKEND_URL: ${NEXT_INTERNAL_BACKEND_URL}
 
   server_old:
     build:

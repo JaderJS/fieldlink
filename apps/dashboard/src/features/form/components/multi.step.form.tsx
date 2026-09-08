@@ -3,7 +3,7 @@
 import React from "react";
 import { ReactNode } from "react";
 import { UseFormReturn } from "react-hook-form";
-import { ZodObject } from "zod";
+import { Schema, ZodObject, ZodType } from "zod";
 
 export interface MultiStepFormRef {
     handleNext: () => void;
@@ -38,7 +38,7 @@ export const MultiStepForm = React.forwardRef<MultiStepFormRef, MultiStepFormPro
 
         const handleNext = () => {
             const parse = schema.safeParse(methods.getValues())
-            const error = parse.error?.issues.find((i) => i.path[0] === steps[currentStep].name)
+            const error = parse.error?.issues.find((i: any) => i.path[0] === steps[currentStep].name)
             if (!isLastStep && !error) {
                 const newStep = currentStep + 1;
                 setCurrentStep(newStep);

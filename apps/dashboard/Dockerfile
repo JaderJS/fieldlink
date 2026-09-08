@@ -1,84 +1,104 @@
 # syntax=docker.io/docker/dockerfile:1
 
-FROM node:22-alpine AS base
+FROM oven/bun:latest AS base
 
-# Step 1. Rebuild the source code only when needed
+WORKDIR /app
+
+
+# ============================================================
+# Dependencies
+# ============================================================
+FROM base AS deps
+
+# Root workspace manifests
+COPY package.json bun.lock* ./
+
+# Workspace manifests
+COPY apps/dashboard/package.json ./apps/dashboard/package.json
+COPY apps/business/package.json ./apps/business/package.json
+COPY apps/server.old/package.json ./apps/server.old/package.json
+
+# Install all workspace dependencies
+RUN bun install --frozen-lockfile
+
+
+# ============================================================
+# Builder
+# ============================================================
 FROM base AS builder
 
 WORKDIR /app
 
-# Install dependencies based on the preferred package manager
-COPY package.json yarn.lock* package-lock.json* pnpm-lock.yaml* .npmrc* ./
+ARG BACKEND_URL
+ENV BACKEND_URL=${BACKEND_URL}
 
-# Omit --production flag for TypeScript devDependencies
-# RUN \
-#   if [ -f yarn.lock ]; then yarn --frozen-lockfile; \
-#   elif [ -f package-lock.json ]; then npm install; \
-#   elif [ -f pnpm-lock.yaml ]; then corepack enable pnpm && pnpm i; \
-#   # Allow install without lockfile, so example works even without Node.js installed locally
-#   else echo "Warning: Lockfile not found. It is recommended to commit lockfiles to version control." && yarn install; \
-#   fi
+ARG NEXT_INTERNAL_BACKEND_URL
+ENV NEXT_INTERNAL_BACKEND_URL=${NEXT_INTERNAL_BACKEND_URL}
 
-RUN npm ci
-RUN npm i sharp
+ENV NODE_ENV=production
 
-COPY src ./src
-COPY public ./public
-COPY next.config.mjs ./  
-COPY tsconfig.json ./
-COPY tailwind.config.* postcss.config.mjs components.json ./
-COPY types.d.ts ./
+# Root dependencies
+COPY --from=deps /app/node_modules ./node_modules
 
-# Environment variables must be present at build time
-# https://github.com/vercel/next.js/discussions/14030
-ARG NODE_ENV
-ENV NODE_ENV="production"
+# Dashboard workspace dependencies
+COPY --from=deps /app/apps/dashboard/node_modules ./apps/dashboard/node_modules
 
-# Next.js collects completely anonymous telemetry data about general usage. Learn more here: https://nextjs.org/telemetry
-# Uncomment the following line to disable telemetry at build time
-# ENV NEXT_TELEMETRY_DISABLED 1
+# Dashboard package
+COPY apps/dashboard/package.json ./apps/dashboard/package.json
 
-# Build Next.js based on the preferred package manager
-# RUN \
-#   if [ -f yarn.lock ]; then yarn build; \
-#   elif [ -f package-lock.json ]; then npm run build; \
-#   elif [ -f pnpm-lock.yaml ]; then pnpm build; \
-#   else npm run build; \
-#   fi
+# Dashboard source
+COPY apps/dashboard/src ./apps/dashboard/src
+COPY apps/dashboard/public ./apps/dashboard/public
 
-RUN npm run build
+# Dashboard configuration
+COPY apps/dashboard/next.config.mjs ./apps/dashboard/
+COPY apps/dashboard/tsconfig.json ./apps/dashboard/
+COPY apps/dashboard/types.d.ts ./apps/dashboard/
 
-# Note: It is not necessary to add an intermediate step that does a full copy of `node_modules` here
+COPY apps/dashboard/tailwind.config.* ./apps/dashboard/
+COPY apps/dashboard/postcss.config.mjs ./apps/dashboard/
+COPY apps/dashboard/components.json ./apps/dashboard/
 
-# Step 2. Production image, copy all the files and run next
-FROM base AS production
+# Build dashboard
+WORKDIR /app/apps/dashboard
+
+RUN ls -la node_modules/.bin/next
+
+RUN bun run build
+
+
+# ============================================================
+# Production
+# ============================================================
+FROM base AS runner
 
 WORKDIR /app
 
-# Don't run production as root
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
-USER nextjs
+# Run as non-root
+USER bun
 
-COPY --from=builder /app/public ./public
+# Static/public files
+COPY --from=builder --chown=bun:bun \
+    /app/apps/dashboard/public \
+    ./public
 
-# Automatically leverage output traces to reduce image size
-# https://nextjs.org/docs/advanced-features/output-file-tracing
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+# Next.js standalone output
+COPY --from=builder --chown=bun:bun \
+    /app/apps/dashboard/.next/standalone \
+    ./
 
-# Environment variables must be redefined at run time
-ARG ENV_VARIABLE
-ENV ENV_VARIABLE=${ENV_VARIABLE}
-ARG NEXT_PUBLIC_ENV_VARIABLE
-ENV NEXT_PUBLIC_ENV_VARIABLE=${NEXT_PUBLIC_ENV_VARIABLE}
-ARG NEXT_PUBLIC_URL_BACK_END
-ENV NEXT_PUBLIC_URL_BACK_END=${NEXT_PUBLIC_URL_BACK_END}
+# Next.js static assets
+COPY --from=builder --chown=bun:bun \
+    /app/apps/dashboard/.next/static \
+    ./.next/static
 
-# Uncomment the following line to disable telemetry at run time
-# ENV NEXT_TELEMETRY_DISABLED 1
+# Next cache
+RUN mkdir -p .next/cache
 
-# Note: Don't expose ports here, Compose will handle that for us
-# CMD ["npm", "run", "start"]
-CMD ["node", "server.js"]
-# CMD ["node", ".next/standalone/server.js"]
+ENV NODE_ENV=production
+ENV HOSTNAME=0.0.0.0
+ENV PORT=3000
+
+EXPOSE 3000
+
+CMD ["bun", "./server.js"]
