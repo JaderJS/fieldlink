@@ -41,6 +41,7 @@
     "@radix-ui/react-use-controllable-state": "^1.2.2",
     "@react-input/mask": "^1.2.15",
     "@react-pdf/renderer": "^4.3.0",
+    "pdfkit": "0.20.1",
     "@remixicon/react": "^4.6.0",
     "@t3-oss/env-nuxt": "^0.13.10",
     "@tabler/icons-react": "^3.34.1",

@@ -31,7 +31,6 @@ FROM base AS runner
 WORKDIR /app/apps/server.old
 COPY --from=builder /app/apps/server.old ./
 COPY --from=builder /app/node_modules /app/node_modules
-USER 1001:1001
 
 EXPOSE 3333
 

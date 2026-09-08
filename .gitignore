@@ -11,6 +11,7 @@ credentials.json
 dist
 **/dist
 .env
+.env*
 
 # output
 out
