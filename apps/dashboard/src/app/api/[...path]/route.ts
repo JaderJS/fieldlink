@@ -33,6 +33,7 @@ async function proxy(
   const headers: Record<string, string> = {
     cookie: req.headers.get("cookie") ?? "",
     authorization: req.headers.get("authorization") ?? "",
+    origin: req.headers.get("origin") ?? "",
   }
 
   const reqContentType = req.headers.get("content-type");
