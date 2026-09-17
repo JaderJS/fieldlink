@@ -1,0 +1,18 @@
+services:
+  server:
+    build:
+      context: .
+      dockerfile: apps/server/Dockerfile
+    ports:
+      - "9017:3333"
+    environment:
+      - name=value
+
+  front:
+    build:
+      context: .
+      dockerfile: apps/front/Dockerfile
+    ports:
+      - "9018:3000"
+    environment:
+      - name=value

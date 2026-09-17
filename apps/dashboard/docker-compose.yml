@@ -1,0 +1,13 @@
+services:
+  front:
+    container_name: front
+    build:
+      context: .
+      dockerfile: Dockerfile.bun
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: development
+      BACKEND_URL: https://api.fieldlink.net.br
+      NEXT_INTERNAL_BACKEND_URL: https://api.fieldlink.net.br
+        

@@ -1,0 +1,10 @@
+{
+	"compilerOptions": {
+		"strict": true,
+		"moduleResolution": "bundler",
+		"resolveJsonModule": true,
+		"types": ["bun"],
+		"module": "ESNext",
+		"target": "ES2022"
+	}
+}
