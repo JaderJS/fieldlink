@@ -64,4 +64,4 @@ COPY --from=builder /work/apps/server/dist ./dist
 
 EXPOSE 3331
 
-CMD ["bun", "dist/server.js"]
+CMD ["bun", "--env-file", ".env", "dist/server.js"]
