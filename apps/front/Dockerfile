@@ -27,6 +27,9 @@ FROM oven/bun:1 AS builder
 
 WORKDIR /monorepo
 
+ARG VITE_API_URL
+ENV VITE_API_URL=${VITE_API_URL}
+
 ENV NODE_ENV=production
 
 COPY --from=deps /monorepo/node_modules ./node_modules
@@ -49,6 +52,7 @@ WORKDIR /monorepo
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
 ENV PORT=3000
+ENV VITE_API_URL=${VITE_API_URL}
 
 COPY --from=builder /monorepo/apps/front/.output ./.output
 
