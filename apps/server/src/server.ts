@@ -23,7 +23,7 @@ const app = new Elysia()
 		}),
 	)
 	.mount("/auth", auth.handler)
-	.listen(3331);
+	.listen(3333);
 
 console.log(
 	`🦊 Elysia is running at http://${app.server?.hostname}:${app.server?.port}`,
