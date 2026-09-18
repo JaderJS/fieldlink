@@ -8,7 +8,11 @@ const app = new Elysia()
 	.get("/", () => "Hello Elysia")
 	.use(
 		cors({
-			origin: "http://localhost:3000",
+			origin: [
+				"http://localhost:3000",
+				"http://192.168.0.140:9018",
+				"https://app.fieldlink.net.br",
+			],
 			methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
 			credentials: true,
 			allowedHeaders: ["Content-Type", "Authorization"],

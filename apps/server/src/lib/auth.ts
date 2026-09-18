@@ -8,7 +8,7 @@ export const auth = betterAuth({
 		provider: "pg",
 		schema: schema,
 	}),
-	trustedOrigins: ["http://localhost:3000"],
+	trustedOrigins: ["http://localhost:3000", "http://192.168.0.140:9017"],
 	basePath: "/",
 	plugins: [openAPI()],
 	emailAndPassword: {
