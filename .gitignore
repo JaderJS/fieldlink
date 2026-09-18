@@ -1,12 +1,11 @@
 # dependencies (bun install)
 node_modules
 
-<<<<<<< HEAD
 biome.json
 .zed
 
-=======
->>>>>>> origin/main
+backup.yml
+
 credentials.json
 **/credentials.json
 
