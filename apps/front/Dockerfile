@@ -41,7 +41,6 @@ COPY packages/database ./packages/database
 
 RUN bun run --filter @fieldlink/front build
 
-
 # ============================================================
 # Runtime
 # ============================================================
