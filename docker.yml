@@ -5,10 +5,10 @@ services:
       dockerfile: apps/server/Dockerfile
     ports:
       - "9017:3333"
-    environment:
-      - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
-      - BETTER_AUTH_URL=${BETTER_AUTH_URL}
-      - DATABASE_URL=${DATABASE_URL}
+    # environment:
+    #   - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
+    #   - BETTER_AUTH_URL=${BETTER_AUTH_URL}
+    #   - DATABASE_URL=${DATABASE_URL}
     env_file:
       - .env
     command: sh -c 'env | sort && exit 0'
