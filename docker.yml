@@ -11,6 +11,7 @@ services:
       - DATABASE_URL=${DATABASE_URL}
     env_file:
       - .env
+    command: sh -c 'env | sort && exit 0'
 
   front:
     build:
