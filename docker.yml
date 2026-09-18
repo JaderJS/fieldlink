@@ -9,6 +9,8 @@ services:
       - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
       - BETTER_AUTH_URL=${BETTER_AUTH_URL}
       - DATABASE_URL=${DATABASE_URL}
+    env_file:
+      - .env
 
   front:
     build:
@@ -17,4 +19,6 @@ services:
     ports:
       - "9018:3000"
     environment:
-      - name=value
+      - VITE_API_URL=${VITE_API_URL}
+    env_file:
+      - .env
