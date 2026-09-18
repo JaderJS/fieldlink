@@ -3,9 +3,10 @@ services:
     build:
       context: .
       dockerfile: apps/server/Dockerfile
+    networks:
+      - fieldlink
     ports:
       - "9017:3333"
-
     environment:
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
       BETTER_AUTH_URL: ${BETTER_AUTH_URL}
@@ -15,7 +16,16 @@ services:
     build:
       context: .
       dockerfile: apps/front/Dockerfile
+      args:
+        - VITE_API_URL=${VITE_API_URL}
+    networks:
+      - fieldlink
     ports:
       - "9018:3000"
     environment:
+      - API_URL=${API_URL}
       - VITE_API_URL=${VITE_API_URL}
+
+networks:
+  default:
+    name: fieldlink
