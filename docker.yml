@@ -7,11 +7,9 @@ services:
       - "9017:3333"
 
     environment:
-      - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
-      - BETTER_AUTH_URL=${BETTER_AUTH_URL}
-      - DATABASE_URL=${DATABASE_URL}
-    # env_file:
-    #   - .env
+      - BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+      - BETTER_AUTH_URL: ${BETTER_AUTH_URL}
+      - DATABASE_URL: ${DATABASE_URL}
 
   front:
     build:
@@ -21,5 +19,3 @@ services:
       - "9018:3000"
     environment:
       - VITE_API_URL=${VITE_API_URL}
-    # env_file:
-    #   - .env
