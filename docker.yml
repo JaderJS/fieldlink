@@ -7,10 +7,12 @@ services:
       - fieldlink
     ports:
       - "9017:3333"
-    environment:
-      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
-      BETTER_AUTH_URL: ${BETTER_AUTH_URL}
-      DATABASE_URL: ${DATABASE_URL}
+    # environment:
+    #   BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+    #   BETTER_AUTH_URL: ${BETTER_AUTH_URL}
+    #   DATABASE_URL: ${DATABASE_URL}
+    env_file:
+      - .env
 
   front:
     build:
