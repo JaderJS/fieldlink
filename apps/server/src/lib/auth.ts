@@ -12,6 +12,8 @@ export const auth = betterAuth({
 		"http://localhost:3000",
 		"http://192.168.0.140:9017",
 		"https://app.fieldlink.net.br",
+		"https://server.fieldlink.net.br",
+		"http://server:9018",
 	],
 	basePath: "/",
 	plugins: [openAPI()],

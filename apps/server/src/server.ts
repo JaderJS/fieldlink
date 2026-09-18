@@ -12,8 +12,8 @@ const app = new Elysia()
 				"http://localhost:3000",
 				"http://192.168.0.140:9018",
 				"https://app.fieldlink.net.br",
-"https://server.fieldlink.net.br",
-"http://server:9018"
+				"https://server.fieldlink.net.br",
+				"http://server:9018",
 			],
 			methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
 			credentials: true,
