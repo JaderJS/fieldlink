@@ -8,7 +8,11 @@ export const auth = betterAuth({
 		provider: "pg",
 		schema: schema,
 	}),
-	trustedOrigins: ["http://localhost:3000", "http://192.168.0.140:9017"],
+	trustedOrigins: [
+		"http://localhost:3000",
+		"http://192.168.0.140:9017",
+		"https://app.fieldlink.net.br",
+	],
 	basePath: "/",
 	plugins: [openAPI()],
 	emailAndPassword: {
