@@ -7,9 +7,9 @@ services:
       - "9017:3333"
 
     environment:
-      - BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
-      - BETTER_AUTH_URL: ${BETTER_AUTH_URL}
-      - DATABASE_URL: ${DATABASE_URL}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL}
+      DATABASE_URL: ${DATABASE_URL}
 
   front:
     build:
