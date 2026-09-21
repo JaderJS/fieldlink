@@ -1,9 +1,13 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute } from "@tanstack/react-router";
 
-export const Route = createFileRoute('/(private)/_protected/dashboard')({
-  component: RouteComponent,
-})
+export const Route = createFileRoute("/(private)/_protected/dashboard")({
+	component: RouteComponent,
+});
 
 function RouteComponent() {
-  return <div>Hello "/(private)/dashboard"!</div>
+	return (
+		<div className="h-full w-full flex justify-center items-center">
+			<span>Dashboard</span>
+		</div>
+	);
 }

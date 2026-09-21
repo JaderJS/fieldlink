@@ -7,6 +7,8 @@ import {
 	Scripts,
 } from "@tanstack/react-router";
 import type { ReactNode } from "react";
+import { GlobalError } from "@/components/global/error";
+import { NotFound } from "@/components/global/notfound";
 import css from "../styles/app.css?url";
 
 export const Route = createRootRoute({
@@ -29,12 +31,18 @@ export const Route = createRootRoute({
 		],
 	}),
 	component: RootComponent,
+
+	errorComponent: GlobalError,
+
+	notFoundComponent: NotFound,
 });
 
 function RootComponent() {
 	return (
 		<RootDocument>
-			<Outlet />
+			<div className="h-dvh w-full">
+				<Outlet />
+			</div>
 		</RootDocument>
 	);
 }

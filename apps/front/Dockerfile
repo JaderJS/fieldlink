@@ -51,6 +51,8 @@ WORKDIR /monorepo
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
 ENV PORT=3000
+
+ARG VITE_API_URL
 ENV VITE_API_URL=${VITE_API_URL}
 
 COPY --from=builder /monorepo/apps/front/.output ./.output

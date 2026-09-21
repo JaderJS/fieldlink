@@ -39,7 +39,7 @@ export function SignUpForm() {
 	}
 
 	return (
-		<form onSubmit={handleSubmit}>
+		<form onSubmit={handleSubmit} className="flex flex-col">
 			<h1>Criar conta</h1>
 
 			<input
