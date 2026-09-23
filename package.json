@@ -1,7 +1,9 @@
 {
 	"name": "fieldlink",
 	"module": "index.ts",
-	"type": "module",
+	"devDependencies": {
+		"@biomejs/biome": "2.5.12"
+	},
 	"private": true,
 	"scripts": {
 		"dev:server": "bun run --filter server dev",
@@ -12,14 +14,11 @@
 		"business:dev": "bun run --filter business dev",
 		"dashboard:dev": "bun run --filter dashboard dev",
 		"dashboard:build": "bun run --filter dashboard build",
-
 		"front:build": "bun run --filter @fieldlink/front build",
 		"front:dev": "bun run --filter @fieldlink/front dev",
 		"front:start": "bun run --filter @fieldlink/front start"
 	},
-	"devDependencies": {
-		"@biomejs/biome": "2.5.12"
-	},
+	"type": "module",
 	"workspaces": [
 		"apps/*",
 		"packages/*"

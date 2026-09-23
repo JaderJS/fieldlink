@@ -1,10 +1,12 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
-
-import { authClient } from "@/lib/auth";
+import { AppSidebar } from "@/components/global/sidebar/app.sidebar";
+import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+// import { getServerSession } from "@/lib/auth/functions";
+import { getServerSession } from "@/lib/auth/server";
 
 export const Route = createFileRoute("/(private)/_protected")({
 	beforeLoad: async ({ location }) => {
-		const { data: session, error } = await authClient.getSession();
+		const { data: session, error } = await getServerSession();
 
 		if (error) {
 			throw new Error("Não foi possivel verificar a sessão");
@@ -30,7 +32,15 @@ export const Route = createFileRoute("/(private)/_protected")({
 });
 
 function ProtectedLayout() {
-	return <Outlet />;
+	return (
+		<SidebarProvider>
+			<AppSidebar />
+			<main>
+				<SidebarTrigger />
+				<Outlet />
+			</main>
+		</SidebarProvider>
+	);
 }
 
 // function AuthenticationError() {

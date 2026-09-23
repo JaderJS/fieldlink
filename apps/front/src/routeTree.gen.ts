@@ -14,6 +14,8 @@ import { Route as privateProtectedRouteRouteImport } from './routes/(private)/_p
 import { Route as publicSignInRouteImport } from './routes/(public)/sign-in'
 import { Route as publicSignUpRouteImport } from './routes/(public)/sign-up'
 import { Route as privateProtectedDashboardRouteImport } from './routes/(private)/_protected/dashboard'
+import { Route as privateProtectedCustomersIndexRouteImport } from './routes/(private)/_protected/customers/index'
+import { Route as privateProtectedStationsIndexRouteImport } from './routes/(private)/_protected/stations/index'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -40,18 +42,34 @@ const privateProtectedDashboardRoute =
     path: '/dashboard',
     getParentRoute: () => privateProtectedRouteRoute,
   } as any)
+const privateProtectedCustomersIndexRoute =
+  privateProtectedCustomersIndexRouteImport.update({
+    id: '/customers/',
+    path: '/customers/',
+    getParentRoute: () => privateProtectedRouteRoute,
+  } as any)
+const privateProtectedStationsIndexRoute =
+  privateProtectedStationsIndexRouteImport.update({
+    id: '/stations/',
+    path: '/stations/',
+    getParentRoute: () => privateProtectedRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/sign-in': typeof publicSignInRoute
   '/sign-up': typeof publicSignUpRoute
   '/dashboard': typeof privateProtectedDashboardRoute
+  '/customers/': typeof privateProtectedCustomersIndexRoute
+  '/stations/': typeof privateProtectedStationsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/sign-in': typeof publicSignInRoute
   '/sign-up': typeof publicSignUpRoute
   '/dashboard': typeof privateProtectedDashboardRoute
+  '/customers': typeof privateProtectedCustomersIndexRoute
+  '/stations': typeof privateProtectedStationsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -60,12 +78,15 @@ export interface FileRoutesById {
   '/(public)/sign-in': typeof publicSignInRoute
   '/(public)/sign-up': typeof publicSignUpRoute
   '/(private)/_protected/dashboard': typeof privateProtectedDashboardRoute
+  '/(private)/_protected/customers/': typeof privateProtectedCustomersIndexRoute
+  '/(private)/_protected/stations/': typeof privateProtectedStationsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/sign-in' | '/sign-up' | '/dashboard'
+  fullPaths:
+    '/' | '/sign-in' | '/sign-up' | '/dashboard' | '/customers/' | '/stations/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/sign-in' | '/sign-up' | '/dashboard'
+  to: '/' | '/sign-in' | '/sign-up' | '/dashboard' | '/customers' | '/stations'
   id:
     | '__root__'
     | '/'
@@ -73,6 +94,8 @@ export interface FileRouteTypes {
     | '/(public)/sign-in'
     | '/(public)/sign-up'
     | '/(private)/_protected/dashboard'
+    | '/(private)/_protected/customers/'
+    | '/(private)/_protected/stations/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -119,15 +142,33 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof privateProtectedDashboardRouteImport
       parentRoute: typeof privateProtectedRouteRoute
     }
+    '/(private)/_protected/customers/': {
+      id: '/(private)/_protected/customers/'
+      path: '/customers'
+      fullPath: '/customers/'
+      preLoaderRoute: typeof privateProtectedCustomersIndexRouteImport
+      parentRoute: typeof privateProtectedRouteRoute
+    }
+    '/(private)/_protected/stations/': {
+      id: '/(private)/_protected/stations/'
+      path: '/stations'
+      fullPath: '/stations/'
+      preLoaderRoute: typeof privateProtectedStationsIndexRouteImport
+      parentRoute: typeof privateProtectedRouteRoute
+    }
   }
 }
 
 interface privateProtectedRouteRouteChildren {
   privateProtectedDashboardRoute: typeof privateProtectedDashboardRoute
+  privateProtectedCustomersIndexRoute: typeof privateProtectedCustomersIndexRoute
+  privateProtectedStationsIndexRoute: typeof privateProtectedStationsIndexRoute
 }
 
 const privateProtectedRouteRouteChildren: privateProtectedRouteRouteChildren = {
   privateProtectedDashboardRoute: privateProtectedDashboardRoute,
+  privateProtectedCustomersIndexRoute: privateProtectedCustomersIndexRoute,
+  privateProtectedStationsIndexRoute: privateProtectedStationsIndexRoute,
 }
 
 const privateProtectedRouteRouteWithChildren =

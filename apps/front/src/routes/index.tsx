@@ -1,7 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { getCustomersOPTIONS } from "@/features/customers/api";
 
 export const Route = createFileRoute("/")({
 	component: RouteComponent,
+	loader: async ({ context }) => {
+		await context.queryClient.query(getCustomersOPTIONS);
+	},
 });
 
 function RouteComponent() {

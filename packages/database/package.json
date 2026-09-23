@@ -12,6 +12,7 @@
 		"tsx": "^4.23.13"
 	},
 	"exports": {
-		".": "./src/main.ts"
+		".": "./src/main.ts",
+		"./domain": "./src/domain/stations/index.ts"
 	}
 }

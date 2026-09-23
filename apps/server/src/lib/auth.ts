@@ -9,7 +9,8 @@ export const auth = betterAuth({
 		schema: schema,
 	}),
 	trustedOrigins: [
-		"http://localhost:3000",
+    "http://localhost:3000",
+		"http://localhost:3333",
 		"http://192.168.0.140:9017",
 		"https://app.fieldlink.net.br",
 		"https://dashboard.fieldlink.net.br",
