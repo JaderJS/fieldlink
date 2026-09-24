@@ -5,7 +5,8 @@ import { KEYS } from "@/core/keys";
 
 export const getCustomers = createServerFn({ method: "GET" }).handler(
 	async () => {
-		return await radio.customers.getCustomers();
+		const r = await radio.customers.getCustomers();
+		return r;
 	},
 );
 

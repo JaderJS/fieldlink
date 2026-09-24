@@ -1,0 +1,1 @@
+ALTER TABLE "works" DROP CONSTRAINT "works_order_id_orders_id_fkey", ADD CONSTRAINT "works_order_id_orders_id_fkey" FOREIGN KEY ("order_id") REFERENCES "orders"("id") ON DELETE CASCADE;

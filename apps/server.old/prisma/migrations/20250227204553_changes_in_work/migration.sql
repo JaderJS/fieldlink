@@ -1,2 +1,0 @@
--- AlterTable
-ALTER TABLE "Work" ALTER COLUMN "total" DROP DEFAULT;

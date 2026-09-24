@@ -9,13 +9,11 @@ WORKDIR /work
 
 COPY package.json bun.lock* ./
 
+COPY apps/business/package.json apps/business/package.json
+COPY apps/front/package.json apps/front/package.json
 COPY apps/server/package.json apps/server/package.json
 COPY packages/database/package.json packages/database/package.json
 
-COPY apps/front/package.json apps/front/package.json
-COPY apps/business/package.json apps/business/package.json
-COPY apps/dashboard/package.json apps/dashboard/package.json
-COPY apps/server.old/package.json apps/server.old/package.json
 
 RUN bun install --frozen-lockfile
 
@@ -30,8 +28,8 @@ ENV NODE_ENV=production
 
 COPY --from=deps /work/node_modules ./node_modules
 COPY --from=deps /work/apps/server/package.json ./apps/server/package.json
-COPY --from=deps /work/packages/database/node_modules ./packages/database/node_modules
 COPY --from=deps /work/apps/server/node_modules ./apps/server/node_modules
+COPY --from=deps /work/packages/database/node_modules ./packages/database/node_modules
 
 COPY packages/database ./packages/database
 COPY apps/server ./apps/server

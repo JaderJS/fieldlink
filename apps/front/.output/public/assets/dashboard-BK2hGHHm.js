@@ -1,0 +1,1 @@
+import{t as e}from"./jsx-runtime-BkSabwWG.js";var t=e();function n(){return(0,t.jsx)(`div`,{className:`h-full w-full flex justify-center items-center`,children:(0,t.jsx)(`span`,{children:`Dashboard`})})}export{n as component};

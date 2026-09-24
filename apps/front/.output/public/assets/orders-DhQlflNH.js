@@ -1,0 +1,1 @@
+import{t as e}from"./jsx-runtime-BkSabwWG.js";var t=e();function n(){return(0,t.jsx)(`div`,{children:`Hello "/(private)/_protected/orders/"!`})}export{n as component};

@@ -1,0 +1,1 @@
+import{t as e}from"./jsx-runtime-BkSabwWG.js";var t=e();function n(){return(0,t.jsx)(`div`,{className:`h-dvh w-full`,children:(0,t.jsxs)(`div`,{className:`h-full flex flex-col justify-center items-center`,children:[(0,t.jsx)(`p`,{className:`text-4xl`,children:`FIELDLINK`}),(0,t.jsx)(`p`,{children:`W.I.P`})]})})}export{n as component};

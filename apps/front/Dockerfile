@@ -9,13 +9,10 @@ WORKDIR /monorepo
 
 COPY package.json bun.lock* ./
 
-COPY apps/front/package.json apps/front/package.json
-COPY packages/database/package.json packages/database/package.json
-
 COPY apps/business/package.json apps/business/package.json
-COPY apps/dashboard/package.json apps/dashboard/package.json
+COPY apps/front/package.json apps/front/package.json
 COPY apps/server/package.json apps/server/package.json
-COPY apps/server.old/package.json apps/server.old/package.json
+COPY packages/database/package.json packages/database/package.json
 
 RUN bun install --frozen-lockfile
 

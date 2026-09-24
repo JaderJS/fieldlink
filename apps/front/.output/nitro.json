@@ -1,0 +1,17 @@
+{
+  "date": "2026-09-24T20:00:04.815Z",
+  "preset": "bun",
+  "framework": {
+    "name": "nitro",
+    "version": "3.0.260903-beta"
+  },
+  "versions": {
+    "nitro": "3.0.260903-beta"
+  },
+  "serverEntry": "server/index.mjs",
+  "publicDir": "public",
+  "commands": {
+    "preview": "bun run ./server/index.mjs"
+  },
+  "config": {}
+}

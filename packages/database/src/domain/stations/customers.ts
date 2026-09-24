@@ -5,16 +5,14 @@ import { NotFoundError } from "./errors";
 
 export type Customer = typeof customers.$inferSelect;
 
-export async function getCustomers(): Promise<Customer[]> {
-	const query = await db
-		.select()
-		.from(customers)
+export async function getCustomers() {
+	const query = await db.select().from(customers);
 
-	return query
+	return query;
 }
 
 export const upsertCustomer = async ({ name }: { name: string }) => {
-  const [customer] = await db
+	const [customer] = await db
 		.insert(customers)
 		.values({
 			name,
@@ -31,11 +29,15 @@ export const upsertCustomer = async ({ name }: { name: string }) => {
 };
 
 export const deleteCustomer = async (id: string) => {
-  const [query] = await db.select().from(customers).where(eq(customers.id, id)).limit(1)
+	const [query] = await db
+		.select()
+		.from(customers)
+		.where(eq(customers.id, id))
+		.limit(1);
 
-  if (!query) {
-    throw new NotFoundError("Customer", id)
-  }
+	if (!query) {
+		throw new NotFoundError("Customer", id);
+	}
 
-  await db.delete(customers).where(eq(customers.id, id))
+	await db.delete(customers).where(eq(customers.id, id));
 };

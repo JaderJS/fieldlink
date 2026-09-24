@@ -1,8 +1,8 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { AppSidebar } from "@/components/global/sidebar/app.sidebar";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
-// import { getServerSession } from "@/lib/auth/functions";
-import { getServerSession } from "@/lib/auth/server";
+import { getServerSession } from "@/lib/auth/functions";
+// import { getServerSession } from "@/lib/auth/server";
 
 export const Route = createFileRoute("/(private)/_protected")({
 	beforeLoad: async ({ location }) => {
@@ -26,33 +26,17 @@ export const Route = createFileRoute("/(private)/_protected")({
 		};
 	},
 
-	// errorComponent: AuthenticationError,
-
 	component: ProtectedLayout,
 });
 
 function ProtectedLayout() {
 	return (
-		<SidebarProvider>
+		<SidebarProvider className="relative min-h-0 h-full w-full overflow-hidden">
 			<AppSidebar />
-			<main>
+			<main className="py-2 px-4 h-full w-full bg-accent">
 				<SidebarTrigger />
 				<Outlet />
 			</main>
 		</SidebarProvider>
 	);
 }
-
-// function AuthenticationError() {
-// 	return (
-// 		<div className="flex min-h-screen items-center justify-center p-6">
-// 			<div className="w-full max-w-md text-center">
-// 				<h1 className="text-2xl font-semibold">Problema na autenticação</h1>
-
-// 				<p className="mt-2 text-muted-foreground">
-// 					Não foi possível verificar sua sessão. Tente novamente.
-// 				</p>
-// 			</div>
-// 		</div>
-// 	);
-// }

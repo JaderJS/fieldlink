@@ -12,7 +12,6 @@ ENV NEXT_INTERNAL_BACKEND_URL=${NEXT_INTERNAL_BACKEND_URL}
 
 COPY package.json bun.lock ./
 COPY apps/business/package.json ./apps/business/
-COPY apps/server.old/package.json /apps/server.old/
 COPY apps/business/package.json /apps/business/
 
 RUN bun install --frozen-lockfile

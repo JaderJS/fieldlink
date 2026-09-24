@@ -1,6 +1,13 @@
 import { Link, LinkProps } from "@tanstack/react-router";
-import { CakeSlice, LayoutDashboardIcon } from "lucide-react";
+import { CakeSlice, ChevronDown, LayoutDashboardIcon } from "lucide-react";
 import { ReactNode } from "react";
+import { PlantGearLogo } from "@/components/icons/logo";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
 	Sidebar,
 	SidebarContent,
@@ -13,6 +20,7 @@ import {
 	SidebarMenuBadge,
 	SidebarMenuButton,
 	SidebarMenuItem,
+	SidebarSeparator,
 } from "@/components/ui/sidebar";
 import { SidebarAccountMenu } from "./sidebar.account";
 
@@ -42,11 +50,38 @@ const NAV: NavItem[] = [
 
 export function AppSidebar() {
 	return (
-		<Sidebar variant="inset">
-			{/*<SidebarHeader>
-				<WorkspaceSwitcher workspace={workspace} onSelect={setWorkspace} />
-			</SidebarHeader>*/}
-			<SidebarContent>
+		<Sidebar variant="inset" className="h-full">
+			<SidebarHeader>
+				<SidebarMenu>
+					<SidebarMenuItem>
+						<DropdownMenu>
+							<DropdownMenuTrigger
+								render={
+									<SidebarMenuButton
+										size={"lg"}
+										className="aria-expanded:bg-sidebar-accent aria-expanded:text-sidebar-accent-foreground"
+									/>
+								}
+							>
+								<PlantGearLogo className="size-12 rounded-lg text-green-800 [&>svg]:size-10" />
+								<span className="grid min-w-0 flex-1 text-left leading-tight">
+									<span className="truncate text-sm font-medium">
+										Fieldlink
+									</span>
+								</span>
+								<ChevronDown className="ml-auto" />
+							</DropdownMenuTrigger>
+							<DropdownMenuContent>
+								<DropdownMenuItem>
+									<span>W.I.P</span>
+								</DropdownMenuItem>
+							</DropdownMenuContent>
+						</DropdownMenu>
+					</SidebarMenuItem>
+				</SidebarMenu>
+			</SidebarHeader>
+
+			<SidebarContent role="navigation" aria-label="workspace">
 				<SidebarGroup>
 					<SidebarGroupLabel>Workspace</SidebarGroupLabel>
 					<SidebarGroupContent>
@@ -72,8 +107,11 @@ export function AppSidebar() {
 				</SidebarGroup>
 				<SidebarGroup />
 			</SidebarContent>
-			{/*<SidebarFooter />*/}
-			<SidebarAccountMenu />
+
+			<SidebarFooter>
+				<SidebarSeparator className="mx-0" />
+				<SidebarAccountMenu />
+			</SidebarFooter>
 		</Sidebar>
 	);
 }

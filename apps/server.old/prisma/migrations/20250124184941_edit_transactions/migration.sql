@@ -1,2 +1,0 @@
--- AlterTable
-ALTER TABLE "Transactions" ADD COLUMN     "periodAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;

@@ -1,0 +1,1 @@
+import{t as e}from"./jsx-runtime-BkSabwWG.js";import{a as t,t as n}from"./index-Bsg_PGpP.js";var r=e();function i({className:e,stations:n,...i}){return(0,r.jsx)(`div`,{className:t(e),...i,children:(n??[]).map(e=>(0,r.jsx)(`div`,{children:e.id},e.id))})}function a(){let{stations:e}=n.useLoaderData();return(0,r.jsx)(i,{stations:e})}export{a as component};

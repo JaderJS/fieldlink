@@ -15,6 +15,8 @@ import { Route as publicSignInRouteImport } from './routes/(public)/sign-in'
 import { Route as publicSignUpRouteImport } from './routes/(public)/sign-up'
 import { Route as privateProtectedDashboardRouteImport } from './routes/(private)/_protected/dashboard'
 import { Route as privateProtectedCustomersIndexRouteImport } from './routes/(private)/_protected/customers/index'
+import { Route as privateProtectedOrdersIndexRouteImport } from './routes/(private)/_protected/orders/index'
+import { Route as privateProtectedOrdersOrderIdRouteImport } from './routes/(private)/_protected/orders/$orderId'
 import { Route as privateProtectedStationsIndexRouteImport } from './routes/(private)/_protected/stations/index'
 
 const IndexRoute = IndexRouteImport.update({
@@ -48,6 +50,18 @@ const privateProtectedCustomersIndexRoute =
     path: '/customers/',
     getParentRoute: () => privateProtectedRouteRoute,
   } as any)
+const privateProtectedOrdersIndexRoute =
+  privateProtectedOrdersIndexRouteImport.update({
+    id: '/orders/',
+    path: '/orders/',
+    getParentRoute: () => privateProtectedRouteRoute,
+  } as any)
+const privateProtectedOrdersOrderIdRoute =
+  privateProtectedOrdersOrderIdRouteImport.update({
+    id: '/orders/$orderId',
+    path: '/orders/$orderId',
+    getParentRoute: () => privateProtectedRouteRoute,
+  } as any)
 const privateProtectedStationsIndexRoute =
   privateProtectedStationsIndexRouteImport.update({
     id: '/stations/',
@@ -60,7 +74,9 @@ export interface FileRoutesByFullPath {
   '/sign-in': typeof publicSignInRoute
   '/sign-up': typeof publicSignUpRoute
   '/dashboard': typeof privateProtectedDashboardRoute
+  '/orders/$orderId': typeof privateProtectedOrdersOrderIdRoute
   '/customers/': typeof privateProtectedCustomersIndexRoute
+  '/orders/': typeof privateProtectedOrdersIndexRoute
   '/stations/': typeof privateProtectedStationsIndexRoute
 }
 export interface FileRoutesByTo {
@@ -68,7 +84,9 @@ export interface FileRoutesByTo {
   '/sign-in': typeof publicSignInRoute
   '/sign-up': typeof publicSignUpRoute
   '/dashboard': typeof privateProtectedDashboardRoute
+  '/orders/$orderId': typeof privateProtectedOrdersOrderIdRoute
   '/customers': typeof privateProtectedCustomersIndexRoute
+  '/orders': typeof privateProtectedOrdersIndexRoute
   '/stations': typeof privateProtectedStationsIndexRoute
 }
 export interface FileRoutesById {
@@ -78,15 +96,32 @@ export interface FileRoutesById {
   '/(public)/sign-in': typeof publicSignInRoute
   '/(public)/sign-up': typeof publicSignUpRoute
   '/(private)/_protected/dashboard': typeof privateProtectedDashboardRoute
+  '/(private)/_protected/orders/$orderId': typeof privateProtectedOrdersOrderIdRoute
   '/(private)/_protected/customers/': typeof privateProtectedCustomersIndexRoute
+  '/(private)/_protected/orders/': typeof privateProtectedOrdersIndexRoute
   '/(private)/_protected/stations/': typeof privateProtectedStationsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/sign-in' | '/sign-up' | '/dashboard' | '/customers/' | '/stations/'
+    | '/'
+    | '/sign-in'
+    | '/sign-up'
+    | '/dashboard'
+    | '/orders/$orderId'
+    | '/customers/'
+    | '/orders/'
+    | '/stations/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/sign-in' | '/sign-up' | '/dashboard' | '/customers' | '/stations'
+  to:
+    | '/'
+    | '/sign-in'
+    | '/sign-up'
+    | '/dashboard'
+    | '/orders/$orderId'
+    | '/customers'
+    | '/orders'
+    | '/stations'
   id:
     | '__root__'
     | '/'
@@ -94,7 +129,9 @@ export interface FileRouteTypes {
     | '/(public)/sign-in'
     | '/(public)/sign-up'
     | '/(private)/_protected/dashboard'
+    | '/(private)/_protected/orders/$orderId'
     | '/(private)/_protected/customers/'
+    | '/(private)/_protected/orders/'
     | '/(private)/_protected/stations/'
   fileRoutesById: FileRoutesById
 }
@@ -149,6 +186,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof privateProtectedCustomersIndexRouteImport
       parentRoute: typeof privateProtectedRouteRoute
     }
+    '/(private)/_protected/orders/': {
+      id: '/(private)/_protected/orders/'
+      path: '/orders'
+      fullPath: '/orders/'
+      preLoaderRoute: typeof privateProtectedOrdersIndexRouteImport
+      parentRoute: typeof privateProtectedRouteRoute
+    }
+    '/(private)/_protected/orders/$orderId': {
+      id: '/(private)/_protected/orders/$orderId'
+      path: '/orders/$orderId'
+      fullPath: '/orders/$orderId'
+      preLoaderRoute: typeof privateProtectedOrdersOrderIdRouteImport
+      parentRoute: typeof privateProtectedRouteRoute
+    }
     '/(private)/_protected/stations/': {
       id: '/(private)/_protected/stations/'
       path: '/stations'
@@ -161,13 +212,17 @@ declare module '@tanstack/react-router' {
 
 interface privateProtectedRouteRouteChildren {
   privateProtectedDashboardRoute: typeof privateProtectedDashboardRoute
+  privateProtectedOrdersOrderIdRoute: typeof privateProtectedOrdersOrderIdRoute
   privateProtectedCustomersIndexRoute: typeof privateProtectedCustomersIndexRoute
+  privateProtectedOrdersIndexRoute: typeof privateProtectedOrdersIndexRoute
   privateProtectedStationsIndexRoute: typeof privateProtectedStationsIndexRoute
 }
 
 const privateProtectedRouteRouteChildren: privateProtectedRouteRouteChildren = {
   privateProtectedDashboardRoute: privateProtectedDashboardRoute,
+  privateProtectedOrdersOrderIdRoute: privateProtectedOrdersOrderIdRoute,
   privateProtectedCustomersIndexRoute: privateProtectedCustomersIndexRoute,
+  privateProtectedOrdersIndexRoute: privateProtectedOrdersIndexRoute,
   privateProtectedStationsIndexRoute: privateProtectedStationsIndexRoute,
 }
 
