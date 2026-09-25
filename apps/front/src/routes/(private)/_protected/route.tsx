@@ -1,15 +1,13 @@
 import {
 	createFileRoute,
-	ErrorComponentProps,
+	type ErrorComponentProps,
 	Link,
 	Outlet,
 	redirect,
 } from "@tanstack/react-router";
 import { AppSidebar } from "@/components/global/sidebar/app.sidebar";
-import { Button } from "@/components/ui/button";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { getServerSession } from "@/lib/auth/functions";
-// import { getServerSession } from "@/lib/auth/server";
 
 export const Route = createFileRoute("/(private)/_protected")({
 	beforeLoad: async ({ location }) => {
@@ -38,7 +36,7 @@ export const Route = createFileRoute("/(private)/_protected")({
 	component: ProtectedLayout,
 });
 
-export function ErrorLayout({ error, reset }: ErrorComponentProps) {
+export function ErrorLayout({ error }: ErrorComponentProps) {
 	return (
 		<div className="flex min-h-screen items-center justify-center p-6">
 			<div className="w-full max-w-md text-center">

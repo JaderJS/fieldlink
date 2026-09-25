@@ -9,7 +9,7 @@ export const Route = createFileRoute("/(public)/sign-in")({
 
 		if (session) {
 			throw redirect({
-				to: "/sign-in",
+				to: "/dashboard",
 			});
 		}
 	},
