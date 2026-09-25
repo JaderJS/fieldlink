@@ -20,4 +20,5 @@ services:
       - "9018:3000"
     environment:
       - API_URL=${API_URL}
+      - DATABASE_URL=${DATABASE_URL}
       - VITE_API_URL=${VITE_API_URL}
