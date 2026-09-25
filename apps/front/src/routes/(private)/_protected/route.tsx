@@ -9,6 +9,7 @@ export const Route = createFileRoute("/(private)/_protected")({
 		const { data: session, error } = await getServerSession();
 
 		if (error) {
+			console.log(error);
 			throw new Error("Não foi possivel verificar a sessão");
 		}
 
