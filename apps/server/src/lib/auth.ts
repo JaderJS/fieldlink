@@ -9,7 +9,7 @@ export const auth = betterAuth({
 		schema: schema,
 	}),
 	trustedOrigins: [
-    "http://localhost:3000",
+		"http://localhost:3000",
 		"http://localhost:3333",
 		"http://192.168.0.140:9017",
 		"https://app.fieldlink.net.br",
@@ -25,6 +25,11 @@ export const auth = betterAuth({
 		revokeSessionsOnPasswordReset: true,
 	},
 	advanced: {
+		useSecureCookies: true,
+		crossSubDomainCookies: {
+			enabled: true,
+			domain: ".fieldlink.net.br",
+		},
 		database: {
 			generateId: false,
 		},

@@ -42,9 +42,14 @@ type GetServerSessionResult =
 export const getServerSession = createServerFn({ method: "GET" }).handler(
 	async (): Promise<GetServerSessionResult> => {
 		const headers = getRequestHeaders();
+
+		console.log("HEADERS", headers);
+
 		const response = await fetch(`${serverEnv.API_URL}/auth/get-session`, {
 			headers: { cookie: headers.get("cookie") ?? "" },
 		});
+
+		console.log("RESPONSE", response);
 
 		if (!response.ok) {
 			return {
