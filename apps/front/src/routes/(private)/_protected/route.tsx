@@ -46,7 +46,7 @@ export function ErrorLayout({ error, reset }: ErrorComponentProps) {
 					Não foi possível verificar a sessão
 				</h1>
 
-				<p className="mt-2 text-muted-foreground">
+				<p className="my-2 text-muted-foreground">
 					Não conseguimos recuperar os dados da sessão.
 				</p>
 

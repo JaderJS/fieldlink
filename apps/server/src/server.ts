@@ -32,8 +32,6 @@ const app = new Elysia()
 	.mount("/auth", auth.handler)
 	.listen(3333);
 
-console.log(`Starting server...`);
-
 console.log(
 	`🦊 Elysia is running at http://${app.server?.hostname}:${app.server?.port}`,
 	`\n📔 OpenAPI documentation: http://${app.server?.hostname}:${app.server?.port}/openapi`,
