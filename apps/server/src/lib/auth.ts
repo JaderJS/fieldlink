@@ -30,6 +30,26 @@ export const auth = betterAuth({
 		// 	enabled: true,
 		// 	domain: ".fieldlink.net.br",
 		// },
+		//
+		useSecureCookies: true,
+
+		crossSubDomainCookies: {
+			enabled: true,
+			domain: ".fieldlink.net.br",
+		},
+
+		cookies: {
+			session_token: {
+				attributes: {
+					domain: ".fieldlink.net.br",
+					path: "/",
+					httpOnly: true,
+					secure: true,
+					sameSite: "lax",
+				},
+			},
+		},
+
 		database: {
 			generateId: false,
 		},
