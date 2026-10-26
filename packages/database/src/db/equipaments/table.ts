@@ -23,13 +23,9 @@ export const equipmentModels = pgTable(
 	"equipment_models",
 	{
 		id: uuid("id").primaryKey().defaultRandom(),
-
 		manufacturer: text("manufacturer").notNull(),
-
 		model: text("model").notNull(),
-
 		description: text("description"),
-
 		createdAt: timestamp("created_at").notNull().defaultNow(),
 	},
 
@@ -48,29 +44,19 @@ export const equipments = pgTable(
 	"equipments",
 	{
 		id: uuid("id").primaryKey().defaultRandom(),
-
 		customerId: uuid("customer_id")
 			.notNull()
 			.references(() => customers.id),
-
 		modelId: uuid("model_id")
 			.notNull()
 			.references(() => equipmentModels.id),
-
 		sn: text("serial_number").notNull(),
-
 		assetNumber: text("asset_number"),
-
 		status: equipmentStatusEnum().default("ACTIVE"),
-
 		notes: text("notes"),
-
 		createdBy: uuid("created_by").notNull(),
-
 		updatedBy: uuid("updated_by").notNull(),
-
 		createdAt: timestamp("created_at").notNull().defaultNow(),
-
 		updatedAt: timestamp("updated_at").notNull().defaultNow(),
 	},
 	(table) => [

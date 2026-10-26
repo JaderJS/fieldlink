@@ -1,0 +1,12 @@
+{
+	"name": "@fieldlink/inventory",
+	"private": "true",
+	"version": "0.0.0",
+	"dependencies": {
+		"@fieldlink/events": "workspace:*",
+		"@fieldlink/database": "workspace:*"
+	},
+	"exports": {
+		".": "./main.ts"
+	}
+}

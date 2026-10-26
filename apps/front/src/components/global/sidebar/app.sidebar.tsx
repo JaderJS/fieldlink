@@ -1,6 +1,6 @@
-import { Link, LinkProps } from "@tanstack/react-router";
-import { CakeSlice, ChevronDown, LayoutDashboardIcon } from "lucide-react";
-import { ReactNode } from "react";
+import { Link, type LinkProps } from "@tanstack/react-router";
+import { CakeSlice, ChevronDown, LayoutDashboardIcon, Rss } from "lucide-react";
+import type { ReactNode } from "react";
 import { PlantGearLogo } from "@/components/icons/logo";
 import {
 	DropdownMenu,
@@ -45,6 +45,12 @@ const NAV: NavItem[] = [
 		label: "Clientes",
 		to: "/customers",
 		icon: <CakeSlice aria-hidden="true" />,
+	},
+	{
+		id: "channels",
+		label: "Canais",
+		to: "/channels",
+		icon: <Rss aria-hidden="true" />,
 	},
 ];
 

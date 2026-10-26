@@ -9,11 +9,20 @@
 	},
 	"devDependencies": {
 		"@types/pg": "^8.23.1",
+		"@fieldlink/events": "workspace:*",
 		"drizzle-kit": "^1.0.0-rc.4",
 		"tsx": "^4.23.13"
 	},
 	"exports": {
 		".": "./src/main.ts",
-		"./domain": "./src/domain/stations/index.ts"
+		"./orm": "src/orm.ts",
+		"./storage": "./src/domain/storage/index.ts",
+		"./repository/inventory": "./src/domain/inventory/index.ts",
+		"./schma": "./src/main.ts",
+		"./domain": "./src/domain/stations/index.ts",
+		"./stations": {
+			"import": "./src/domain/stations/index.ts",
+			"types": "./src/domain/stations/index.ts"
+		}
 	}
 }

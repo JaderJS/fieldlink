@@ -1,0 +1,797 @@
+
+
+===== ./src/events.ts =====
+
+import type { DomainEvent } from "@fieldlink/events/types";
+
+export const issueReasons = [
+	"SALE",
+	"LOS",
+	"RETURN_TO_SUPPLIER",
+	"INTERNAL_USE",
+] as const;
+
+export type IssueReason = (typeof issueReasons)[number];
+
+export type StockReceived = DomainEvent<
+	"StockReceived",
+	{ quantity: number; reference?: string }
+>;
+
+export type StockIssued = DomainEvent<
+	"StockIssued",
+	{ quantity: number; reason: IssueReason; reference?: string }
+>;
+
+export type StockCounted = DomainEvent<
+	"StockCounted",
+	{ previousQuantity: number; countedQuantity: number }
+>;
+
+export type StockEvent = StockReceived | StockIssued | StockCounted;
+
+
+===== ./src/aggregate.ts =====
+
+import { DomainError } from "@fieldlink/events";
+import type { Aggregate } from "@fieldlink/events/types";
+import type { IssueReason, StockEvent } from "./events";
+
+export const STOCK_STREAM = "STOCK_STREAM";
+
+export const stockItemId = (warehouseId: string, sku: string) =>
+	`${warehouseId}:${sku}`;
+
+export function parseStockItemId(id: string) {
+	const i = id.indexOf(":");
+	return { warehouseId: id.slice(0, i), sku: id.slice(i + 1) };
+}
+
+export class InsufficientStockError extends DomainError {
+	constructor(available: number, requested: number) {
+		super(
+			`Estoque insuficiente: disponível ${available}, solicitado ${requested}`,
+		);
+	}
+}
+
+export interface StockState {
+	quantity: number;
+}
+
+export const stockItem: Aggregate<StockState, StockEvent> = {
+	streamType: STOCK_STREAM,
+	initialState: () => ({ quantity: 0 }),
+	evolve: (state, event) => {
+		switch (event.type) {
+			case "StockReceived":
+				return { quantity: state.quantity + event.payload.quantity };
+			case "StockIssued":
+				return { quantity: state.quantity - event.payload.quantity };
+			case "StockCounted":
+				return { quantity: event.payload.countedQuantity };
+		}
+	},
+};
+
+function assertPositiveInt(n: number, field: string) {
+	if (!Number.isInteger(n) || n < 0) {
+		throw new DomainError(`${field} deve ser um inteiro positivo`);
+	}
+}
+
+export const receive =
+	(cmd: { quantity: number; reference?: string }) =>
+	(_state: StockState): StockEvent[] => {
+		assertPositiveInt(cmd.quantity, "quantity");
+		return [
+			{
+				type: "StockReceived",
+				payload: { quantity: cmd.quantity, reference: cmd.reference },
+			},
+		];
+	};
+
+export const issue =
+	(cmd: { quantity: number; reason: IssueReason; reference?: string }) =>
+	(state: StockState): StockEvent[] => {
+		assertPositiveInt(cmd.quantity, "quantity");
+		if (state.quantity < cmd.quantity)
+			throw new InsufficientStockError(state.quantity, cmd.quantity);
+
+		return [
+			{
+				type: "StockIssued",
+				payload: {
+					quantity: cmd.quantity,
+					reason: cmd.reason,
+					reference: cmd.reference,
+				},
+			},
+		];
+	};
+
+export const count =
+	(cmd: { countedQuantity: number }) =>
+	(state: StockState): StockEvent[] => {
+		if (!Number.isInteger(cmd.countedQuantity) || cmd.countedQuantity < 0) {
+			throw new DomainError("countedQuantity deve ser um inteiro >=0");
+		}
+
+		if (cmd.countedQuantity === state.quantity) return [];
+
+		return [
+			{
+				type: "StockCounted",
+				payload: {
+					previousQuantity: state.quantity,
+					countedQuantity: cmd.countedQuantity,
+				},
+			},
+		];
+	};
+
+
+===== ./src/api.ts =====
+
+import { inventoryLevelsRepository } from "@fieldlink/database/repository/inventory";
+import { EventStore, execute, loadAggregate } from "@fieldlink/events";
+import type { Db } from "@fieldlink/events/types";
+import {
+	count as countStock,
+	issue,
+	receive,
+	STOCK_STREAM,
+	type StockState,
+	stockItem,
+	stockItemId,
+} from "./aggregate";
+import type { IssueReason, StockEvent } from "./events";
+import { inventoryLevelProjection, rebuildInventoryLevels } from "./projection";
+
+interface Actor {
+	actorId?: string;
+}
+
+export interface StockItemRef {
+	warehouseId: string;
+	sku: string;
+}
+
+export type HistoryEntry = StockEvent & {
+	version: number;
+	occurredAt: Date;
+	actorId: string | null;
+};
+
+export interface Inventory {
+	add(
+		input: StockItemRef & { quantity: number; reference?: string } & Actor,
+	): Promise<{ version: number }>;
+
+	remove(
+		input: StockItemRef & {
+			quantity: number;
+			reason: IssueReason;
+			reference?: string;
+		} & Actor,
+	): Promise<{ version: number }>;
+
+	count(
+		input: StockItemRef & { countedQuantity: number } & Actor,
+	): Promise<{ changed: boolean; version: number | null }>;
+
+	balance(item: StockItemRef): Promise<number>;
+
+	history(item: StockItemRef): Promise<HistoryEntry[]>;
+
+	balanceAt(
+		item: StockItemRef,
+		at: { version?: number; asOf?: Date },
+	): Promise<{ quantity: number; version: number }>;
+
+	rebuild(): Promise<void>;
+}
+
+export function createInventory({
+	db,
+	maxRetries = 25,
+}: {
+	db: Db;
+	maxRetries: number;
+}): Inventory {
+	const store = new EventStore(db).registerProjection(inventoryLevelProjection);
+	const levels = inventoryLevelsRepository(db);
+
+	const run = (
+		item: StockItemRef,
+		decide: (state: StockState) => StockEvent[],
+		actorId?: string,
+	) =>
+		execute(store, stockItem, stockItemId(item.warehouseId, item.sku), decide, {
+			maxRetries,
+			metadata: actorId ? { actorId } : undefined,
+		});
+
+	return {
+		async add({ warehouseId, sku, quantity, reference, actorId }) {
+			const stored = await run(
+				{ warehouseId, sku },
+				receive({ quantity, reference }),
+				actorId,
+			);
+			return { version: stored.at(-1)!.version };
+		},
+
+		async remove({ warehouseId, sku, quantity, reason, reference, actorId }) {
+			const stored = await run(
+				{ warehouseId, sku },
+				issue({ quantity, reason, reference }),
+				actorId,
+			);
+			return { version: stored.at(-1)!.version };
+		},
+
+		async count({ warehouseId, sku, countedQuantity, actorId }) {
+			const stored = await run(
+				{ warehouseId, sku },
+				countStock({ countedQuantity }),
+				actorId,
+			);
+			return {
+				changed: stored.length > 0,
+				version: stored.at(-1)?.version ?? null,
+			};
+		},
+
+		async balance({ warehouseId, sku }) {
+			return (await levels.find(warehouseId, sku))?.quantity ?? 0;
+		},
+
+		async history({ warehouseId, sku }) {
+			const events = await store.load<StockEvent>(
+				STOCK_STREAM,
+				stockItemId(warehouseId, sku),
+			);
+			return events.map(
+				(e) =>
+					({
+						type: e.type,
+						payload: e.payload,
+						version: e.version,
+						occurredAt: e.occuredAt,
+						actorId:
+							typeof e.metadata.actorId === "string"
+								? e.metadata.actorId
+								: null,
+					}) as HistoryEntry,
+			);
+		},
+
+		async balanceAt({ warehouseId, sku }, at) {
+			const { state, version } = await loadAggregate(
+				store,
+				stockItem,
+				stockItemId(warehouseId, sku),
+				at,
+			);
+			return { quantity: state.quantity, version };
+		},
+
+		rebuild: () => rebuildInventoryLevels(db, store),
+	};
+}
+
+
+===== ./src/projection.ts =====
+
+import { inventoryLevelsRepository } from "@fieldlink/database/repository/inventory";
+import type { EventStore } from "@fieldlink/events";
+import type { Db, Projection } from "@fieldlink/events/types";
+import { parseStockItemId, STOCK_STREAM } from "./aggregate";
+import type { StockEvent } from "./events";
+
+export const inventoryLevelProjection: Projection<StockEvent> = {
+	name: "stock_levels",
+	streamType: [STOCK_STREAM],
+	async handle(event, tx) {
+		const levels = inventoryLevelsRepository(tx);
+		const { warehouseId, sku } = parseStockItemId(event.streamId);
+		const common = {
+			warehouseId,
+			sku,
+			version: event.version,
+			at: event.occuredAt,
+		};
+
+		switch (event.type) {
+			case "StockReceived": {
+				await levels.applyDelta({ ...common, delta: event.payload.quantity });
+				break;
+			}
+
+			case "StockIssued": {
+				console.log(event.payload.quantity);
+				await levels.applyDelta({ ...common, delta: -event.payload.quantity });
+				break;
+			}
+
+			case "StockCounted": {
+				await levels.setQuantity({
+					...common,
+					quantity: event.payload.countedQuantity,
+				});
+				break;
+			}
+		}
+	},
+};
+
+export async function rebuildInventoryLevels(db: Db, store: EventStore) {
+	await db.transaction(async (tx) => {
+		await inventoryLevelsRepository(tx).deleteAll();
+		for await (const event of store.readAll<StockEvent>({
+			streamType: STOCK_STREAM,
+		})) {
+			await inventoryLevelProjection.handle(event, tx);
+		}
+	});
+}
+
+
+===== ./tests/concurrency.test.ts =====
+
+import { beforeEach, describe, expect, test } from "bun:test";
+import { db, eq, schema } from "@fieldlink/database";
+import {
+	type AppendInput,
+	ConcurrencyError,
+	DomainError,
+	EventStore,
+	execute,
+	loadAggregate,
+} from "@fieldlink/events";
+import type {
+	Aggregate,
+	DomainEvent,
+	StoredEvent,
+} from "@fieldlink/events/types";
+
+const store = new EventStore(db);
+
+type Incremented = DomainEvent<"Incremented", { by: number }>;
+type Decremented = DomainEvent<"Decremented", { by: number }>;
+type CounterEvent = Incremented | Decremented;
+
+export const inc = (by: number): CounterEvent => ({
+	type: "Incremented",
+	payload: { by },
+});
+
+export interface CounterState {
+	value: number;
+}
+
+export const decrement =
+	(by: number) =>
+	(state: CounterState): CounterEvent[] => {
+		if (state.value - by < 0)
+			throw new DomainError("O contador não pode ficar negativo");
+		return [{ type: "Decremented", payload: { by } }];
+	};
+
+export const increment =
+	(by: number) =>
+	(_state: CounterState): CounterEvent[] => [inc(by)];
+
+export const counter: Aggregate<CounterState, CounterEvent> = {
+	streamType: "counter",
+	initialState: () => ({ value: 0 }),
+	evolve: (state, event) =>
+		event.type === "Incremented"
+			? { value: state.value + event.payload.by }
+			: { value: state.value - event.payload.by },
+};
+
+class RacyStore extends EventStore {
+	private raced = false;
+
+	override async append<E extends DomainEvent>(
+		input: AppendInput<E>,
+	): Promise<StoredEvent<E>[]> {
+		if (!this.raced) {
+			this.raced = true;
+			await super.append({
+				...input,
+				events: [
+					{ type: "Incremented", payload: { by: 100 } },
+				] as unknown as E[],
+			});
+		}
+		return super.append(input);
+	}
+}
+
+beforeEach(async () => {
+	// await db.delete(schema.events).where(eq(schema.events.streamType, "counter"));
+	await db.delete(schema.events);
+});
+
+describe("Concorrencia otimista", () => {
+	test("expectedVersion desatualizada lança ConcurrencyError", async () => {
+		await store.append({
+			streamType: "counter",
+			streamId: "c1",
+			expectedVersion: 0,
+			events: [inc(1)],
+		});
+
+		await expect(
+			store.append({
+				streamType: "counter",
+				streamId: "c1",
+				expectedVersion: 0,
+				events: [inc(1)],
+			}),
+		).rejects.toBeInstanceOf(ConcurrencyError);
+	});
+
+	test("o append é atômico: se um evento do lote conflita todo o resto é jogado fora", async () => {
+		await store.append({
+			streamType: "counter",
+			streamId: "c1",
+			expectedVersion: 0,
+			events: [inc(1), inc(1)],
+		});
+
+		await expect(
+			store.append({
+				streamType: "counter",
+				streamId: "c1",
+				expectedVersion: 1,
+				events: [inc(1), inc(1)],
+			}),
+		).rejects.toBeInstanceOf(ConcurrencyError);
+
+		expect((await store.load("counter", "c1")).map((e) => e.version)).toEqual([
+			1, 2,
+		]);
+	});
+
+	test("append simultâneos na mesma versão: apenas um vence", async () => {
+		const res = await Promise.allSettled([
+			store.append({
+				streamType: "counter",
+				streamId: "c1",
+				expectedVersion: 0,
+				events: [inc(1), inc(1)],
+			}),
+			store.append({
+				streamType: "counter",
+				streamId: "c1",
+				expectedVersion: 0,
+				events: [inc(2), inc(3)],
+			}),
+		]);
+		expect(res.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+
+		const reject = res.filter((r) => r.status === "rejected");
+
+		expect(reject).toHaveLength(1);
+		expect(reject[0].reason).toBeInstanceOf(ConcurrencyError);
+	});
+});
+
+describe("Execute (carregar -> decidir -> gravar, com retry)", () => {
+	test("caminho feliz: grava o evento decidido", async () => {
+		const stored = await execute(store, counter, "c1", increment(5));
+		expect(stored.map((e) => e.version)).toEqual([1]);
+		expect((await loadAggregate(store, counter, "c1")).state.value).toBe(5);
+	});
+
+	test("regra de negócio violada: lança DomainError e NADA é gravado", async () => {
+		await execute(store, counter, "c1", increment(2));
+		await expect(execute(store, counter, "c1", decrement(3))).rejects.toThrow(
+			"negativo",
+		);
+	});
+
+	test("perde a corrida, recarrega, DECIDE DE NOVO com o estado atualizado e grava", async () => {
+		const racy = new RacyStore(db);
+		const stateSeenByDecide: number[] = [];
+
+		const stored = await execute(
+			racy,
+			counter,
+			"c1",
+			(state): CounterEvent[] => {
+				stateSeenByDecide.push(state.value);
+				return [inc(5)];
+			},
+		);
+
+		// 1ª tentativa viu 0 e perdeu a corrida; 2ª viu 100 (o evento do "outro processo").
+		expect(stateSeenByDecide).toEqual([0, 100]);
+		expect(stored.map((e) => e.version)).toEqual([2]);
+		expect((await loadAggregate(store, counter, "c1")).state.value).toBe(105);
+	});
+});
+
+
+===== ./tests/append.and.load.test.ts =====
+
+import {
+	afterAll,
+	beforeAll,
+	beforeEach,
+	describe,
+	expect,
+	test,
+} from "bun:test";
+import { db, eq, schema } from "@fieldlink/database";
+import { DomainError, EventStore } from "@fieldlink/events";
+import { Aggregate, DomainEvent } from "@fieldlink/events/types";
+
+const store = new EventStore(db);
+
+type Incremented = DomainEvent<"Incremented", { by: number }>;
+type Decremented = DomainEvent<"Decremented", { by: number }>;
+type CounterEvent = Incremented | Decremented;
+
+interface CounterState {
+	value: number;
+}
+
+const counter: Aggregate<CounterState, CounterEvent> = {
+	streamType: "counter",
+	initialState: () => ({ value: 0 }),
+	evolve: (state, event) => {
+		return event.type === "Incremented"
+			? { value: state.value + event.payload.by }
+			: { value: state.value - event.payload.by };
+	},
+};
+
+export const inc = (by: number): CounterEvent => ({
+	type: "Incremented",
+	payload: { by },
+});
+
+const increment =
+	(by: number) =>
+	(state: CounterState): CounterEvent[] => {
+		return [
+			{
+				type: "Incremented",
+				payload: { by },
+			},
+		];
+	};
+
+const decrement =
+	(by: number) =>
+	(state: CounterState): CounterEvent[] => {
+		if (state.value - by < 0)
+			throw new DomainError("O contador nao pode ficar negativo");
+		return [{ type: "Decremented", payload: { by } }];
+	};
+
+beforeEach(async () => {
+	// await db.delete(schema.events).where(eq(schema.events.streamType, "counter"));
+	await db.delete(schema.events);
+});
+
+describe("Append e load", () => {
+	test("numera os eventos de um stream a partir de 1 e devolve em ordem", async () => {
+		await store.append({
+			streamType: "counter",
+			streamId: "c1",
+			expectedVersion: 0,
+			events: [inc(1), inc(2), inc(4)],
+		});
+
+		const loaded = await store.load<CounterEvent>("counter", "c1");
+
+		expect(loaded.map((e) => e.version)).toEqual([1, 2, 3]);
+		expect(loaded.map((e) => e.payload.by)).toEqual([1, 2, 4]);
+	});
+
+	test("um segundo append continua a numeração de onde parou", async () => {
+		await store.append({
+			streamType: "counter",
+			streamId: "c1",
+			expectedVersion: 0,
+			events: [inc(1), inc(2)],
+		});
+		await store.append({
+			streamType: "counter",
+			streamId: "c1",
+			expectedVersion: 2,
+			events: [inc(3)],
+		});
+		const loaded = await store.load<CounterEvent>("counter", "c1");
+		expect(loaded.map((e) => e.version)).toEqual([1, 2, 3]);
+	});
+
+	test("streams diferentes sao independentes cada um começa na versão 1", async () => {
+		await store.append({
+			streamType: "counter",
+			streamId: "c1",
+			events: [inc(1), inc(1)],
+			expectedVersion: 0,
+		});
+
+		await store.append({
+			streamType: "counter",
+			streamId: "c2",
+			events: [inc(2)],
+			expectedVersion: 0,
+		});
+
+		expect((await store.load("counter", "c1")).map((e) => e.version)).toEqual([
+			1, 2,
+		]);
+		expect((await store.load("counter", "c2")).map((e) => e.version)).toEqual([
+			1,
+		]);
+	});
+
+	test("o mesmo streamId em streamTypes diferentes não se mistura", async () => {
+		await store.append({
+			streamType: "counter",
+			streamId: "x",
+			expectedVersion: 0,
+			events: [inc(1)],
+		});
+		await store.append({
+			streamType: "debug",
+			streamId: "x",
+			expectedVersion: 0,
+			events: [inc(1)],
+		});
+
+		expect(await store.load("counter", "x")).toHaveLength(1);
+		expect(await store.load("debug", "x")).toHaveLength(1);
+	});
+
+	test("payload e metadata sobrevivem a viagem pelo banco (jsonb)", async () => {
+		const [stored] = await store.append({
+			streamType: "counter",
+			streamId: "c1",
+			expectedVersion: 0,
+			events: [inc(7)],
+			metadata: { actorId: "Ana", origem: "debug" },
+		});
+
+		expect(stored.payload).toEqual({ by: 7 });
+		expect(stored.metadata).toEqual({ actorId: "Ana", origem: "debug" });
+
+		const [loaded] = await store.load<CounterEvent>("counter", "c1");
+		expect(loaded.metadata.actorId).toBe("Ana");
+		expect(typeof loaded.id).toBe("string");
+	});
+
+	test("postion é uma ordem global crescente entre streams", async () => {
+		const [a] = await store.append({
+			streamType: "counter",
+			streamId: "c1",
+			expectedVersion: 0,
+			events: [inc(1)],
+		});
+
+		const [b] = await store.append({
+			streamType: "counter",
+			streamId: "c2",
+			expectedVersion: 0,
+			events: [inc(1)],
+		});
+
+		const [c] = await store.append({
+			streamType: "counter",
+			streamId: "c3",
+			expectedVersion: 0,
+			events: [inc(1)],
+		});
+
+		expect(b.position).toBeGreaterThan(a.position);
+		expect(c.position).toBeGreaterThan(b.position);
+	});
+
+	test("append sem evento não faz nada", async () => {
+		const result = await store.append({
+			streamType: "counter",
+			streamId: "c1",
+			expectedVersion: 0,
+			events: [],
+		});
+
+		expect(result).toEqual([]);
+		const query = await db.select().from(schema.events);
+		expect(query.length).toBe(0);
+	});
+
+	test("load de um stream inexistente devolve lista vazia", async () => {
+		expect(await store.load("counter", "xxx")).toEqual([]);
+	});
+});
+
+
+===== ./tests/inventory.test.ts =====
+
+import { beforeEach, describe, expect, test } from "bun:test";
+import { db, schema } from "@fieldlink/database";
+import { createInventory } from "@/api";
+
+const item = { warehouseId: "fieldlink", sku: "SKU-1" };
+
+const inventory = createInventory({ db: db, maxRetries: 30 });
+
+beforeEach(async () => {
+	await db.delete(schema.events);
+});
+
+describe("Regra de negócio Inventory", async () => {
+	await inventory.rebuild();
+
+	test("add registra a entrada e atualiza o inventario", async () => {
+		const adds = Array.from({ length: 20 }).map((_, index) => {
+			return inventory.add({
+				...item,
+				quantity: 2 * index,
+				reference: "BF-25",
+			});
+		});
+		await Promise.all(adds);
+
+		await inventory.remove({
+			...item,
+			quantity: 2,
+			reason: "SALE",
+			reference: "BF-25",
+		});
+
+		const history = await inventory.history(item);
+		console.log(history);
+		expect(await inventory.balance(item)).toBe(5216);
+	}, 30_000);
+});
+
+
+===== ./tsconfig.json =====
+
+{
+	"compilerOptions": {
+		"strict": true,
+		"moduleResolution": "bundler",
+		"resolveJsonModule": true,
+		"types": ["bun"],
+		"module": "ESNext",
+		"target": "ES2022",
+		"baseUrl": ".",
+		"paths": {
+			"@/*": ["./src/*"]
+		}
+	},
+	"include": ["src/**/*.ts", "tests/**/*", "src/**/*.tsx"]
+}
+
+
+===== ./.env =====
+
+DATABASE_URL="postgresql://jaderovski:r2o63vd1k7pzqg15ua2v1r5obw9pvcf9c2lvcwh2m9me2nqj@server:5437/fieldlink"
+
+
+===== ./package.json =====
+
+{
+	"name": "@fieldlink/inventory",
+	"private": "true",
+	"version": "0.0.0",
+	"dependencies": {
+		"@fieldlink/events": "workspace:*",
+		"@fieldlink/database": "workspace:*"
+	},
+	"exports": {
+		".": "./main.ts"
+	}
+}

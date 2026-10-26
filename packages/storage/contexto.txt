@@ -1,0 +1,1145 @@
+
+
+===== ./src/config.ts =====
+
+import z from "zod";
+
+export const loadStorageSchema = z.object({
+	S3_BUCKET: z.string(),
+	S3_REGION: z.string(),
+	S3_ENDPOINT: z.url(),
+	S3_ACCESS_KEY_ID: z.string(),
+	S3_SECRET_ACCESS_KEY: z.string(),
+	S3_FORCE_PATH_STYLE: z.stringbool().default(true),
+	S3_PUBLIC_BASE_URL: z.url().optional(),
+	S3_MAX_FILE_SIZE_BYTES: z.coerce.number().default(25 * 1024 * 1024),
+	S3_UPLOAD_URL_EXPIRES_IN: z.coerce.number().default(300),
+	S3_DOWNLOAD_URL_EXPIRE_IN: z.coerce.number().default(300),
+});
+
+export type StorageConfig = z.infer<typeof loadStorageConfig>;
+
+export const loadStorageConfig = (env: unknown) => loadStorageSchema.parse(env);
+
+
+===== ./src/keys.ts =====
+
+import { randomUUIDv7 } from "bun";
+
+export function sanitizeFilename(filename: string): string {
+	const normalized = filename
+		.normalize("NFKD")
+		.replace(/\p{Diacritic}/gu, "")
+		.replace(/[/\\]/g, "_")
+		.replace(/[^\p{L}\p{N}._-]/gu, "_")
+		.replace(/\.{2,}/g, ".")
+		.replace(/^[._-]+|[._-]+$/g, "")
+		.slice(0, 180);
+
+	return normalized || "file";
+}
+
+export function createObjectKey(filename: string, prefix = "uploads"): string {
+	const safePrefix = prefix
+		.split("/")
+		.filter(Boolean)
+		.map((part) => part.replace(/[^a-zA-Z0-9_-]/g, "_"))
+		.join("/");
+
+	return [
+		safePrefix || "uploads",
+		randomUUIDv7(),
+		sanitizeFilename(filename),
+	].join("/");
+}
+
+
+===== ./src/storage.services.ts =====
+
+import { createObjectKey, sanitizeFilename } from "./keys";
+import type { createStorage } from "./uploads";
+
+type PendingStorageObject = {
+	id: string;
+	objectKey: string;
+	originalName: string;
+	expectedSize: number;
+	contentType: string;
+	status: string;
+};
+
+type StorageRepository = {
+	createPendingStorageObject(input: {
+		objectKey: string;
+		originalName: string;
+		contentType: string;
+		expectedSize: number;
+	}): Promise<{ id: string; objectKey: string }>;
+
+	findStorageObjectById(id: string): Promise<PendingStorageObject | null>;
+
+	confirmStorageUpload(input: {
+		id: string;
+		verifiedSize: number;
+		verifiedContentType: string;
+	}): Promise<unknown>;
+
+	markStorageUploadFailed(input: { id: string; reason: string }): Promise<void>;
+};
+
+type StorageClient = Pick<
+	ReturnType<typeof createStorage>,
+	| "createPreassignedUpload"
+	| "uploadBuffer"
+	| "headObject"
+	| "getDownloadUrl"
+	| "deleteObject"
+	| "getPublicUrl"
+>;
+
+export type StorageErrorCode =
+	| "NOT_FOUND"
+	| "INVALID_STATE"
+	| "OBJECT_MISSING"
+	| "SIZE_MISMATCH"
+	| "TYPE_MISMATCH";
+
+export class StorageServiceError extends Error {
+	readonly code: StorageErrorCode;
+
+	constructor(code: StorageErrorCode, message: string) {
+		super(message);
+		this.name = "StorageServiceError";
+		this.code = code;
+	}
+}
+
+function isNotFound(error: unknown) {
+	if (typeof error !== "object" || error === null) return false;
+
+	const e = error as { name?: string; $metadata?: { httpStatusCode?: number } };
+
+	return (
+		e.name === "NotFound" ||
+		e.name === "NoSuchKey" ||
+		e.$metadata?.httpStatusCode === 404
+	);
+}
+
+export function createStorageService(input: {
+	storage: StorageClient;
+	repository: StorageRepository;
+}) {
+	const { storage, repository } = input;
+
+	async function markFailed({ id, reason }: { id: string; reason: string }) {
+		await repository
+			.markStorageUploadFailed({ id: id, reason: reason })
+			.catch(() => {});
+	}
+
+	async function getRecord(id: string) {
+		const record = await repository.findStorageObjectById(id);
+
+		if (!record) {
+			throw new StorageServiceError("NOT_FOUND", "Storage object not found");
+		}
+
+		return record;
+	}
+
+	async function uploadBuffer(file: {
+		filename: string;
+		contentType: string;
+		body: Uint8Array;
+		prefix?: string;
+	}) {
+		const objectKey = createObjectKey(file.filename, file.prefix);
+
+		const pending = await repository.createPendingStorageObject({
+			objectKey: objectKey,
+			originalName: sanitizeFilename(file.filename),
+			contentType: file.contentType,
+			expectedSize: file.body.byteLength,
+		});
+
+		await storage.uploadBuffer({ ...file, objectKey });
+
+		const uploaded = await storage.headObject(objectKey);
+
+		const confirmed = await repository.confirmStorageUpload({
+			id: pending.id,
+			verifiedSize: uploaded.size,
+			verifiedContentType: uploaded.contentType,
+		});
+
+		return {
+			id: pending.id,
+			objectKey: objectKey,
+			uploaded: uploaded,
+			confirmed: confirmed,
+		};
+	}
+
+	async function getDownloadUrl(id: string, filename?: string) {
+		const record = await getRecord(id);
+
+		if (record.status !== "ACTIVE") {
+			throw new StorageServiceError(
+				"INVALID_STATE",
+				`Object is not available (status ${record.status})`,
+			);
+		}
+
+		return storage.getDownloadUrl(
+			record.objectKey,
+			filename ?? record.originalName,
+		);
+	}
+
+	return {
+		uploadBuffer,
+    getPublicUrl: storage.getPublicUrl,
+		getDownloadUrl
+	};
+}
+
+
+===== ./src/uploads.ts =====
+
+import {
+	DeleteObjectCommand,
+	GetObjectCommand,
+	HeadObjectCommand,
+	PutObjectCommand,
+} from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+
+import { createS3Client } from "./client";
+import { createObjectKey, sanitizeFilename } from "./keys";
+import type { StorageConfig } from "./types";
+import { validateFileBuffer, validateFileMetadata } from "./validation";
+
+export function createStorage(config: StorageConfig) {
+	const client = createS3Client(config);
+	const maxSize = config.S3_MAX_FILE_SIZE_BYTES ?? 25 * 1024 * 1024;
+
+	function validate(input: { contentType: string; size: number }) {
+		validateFileMetadata({
+			...input,
+			maxSize,
+		});
+	}
+
+	async function createPreassignedUpload(input: {
+		filename: string;
+		contentType: string;
+		size: number;
+		prefix?: string;
+	}) {
+		validate(input);
+
+		const objectKey = createObjectKey(input.filename, input.prefix);
+
+		const expiresIn = config.S3_UPLOAD_URL_EXPIRES_IN ?? 300;
+
+		const uploadUrl = await getSignedUrl(
+			client,
+			new PutObjectCommand({
+				Bucket: config.S3_BUCKET,
+				Key: objectKey,
+				ContentType: input.contentType,
+			}),
+			{ expiresIn },
+		);
+
+		return {
+			objectKey,
+			uploadUrl,
+			expiresIn,
+			originalName: sanitizeFilename(input.filename),
+			contentType: input.contentType,
+			size: input.size,
+		};
+	}
+
+	async function uploadBuffer(input: {
+		filename: string;
+		contentType: string;
+		body: Uint8Array;
+		objectKey?: string;
+		prefix?: string;
+	}) {
+		validate({
+			contentType: input.contentType,
+			size: input.body.byteLength,
+		});
+
+		await validateFileBuffer(input.body, input.contentType);
+
+		const objectKey =
+			input.objectKey ?? createObjectKey(input.filename, input.prefix);
+
+		await client.send(
+			new PutObjectCommand({
+				Bucket: config.S3_BUCKET,
+				Key: objectKey,
+				Body: input.body,
+				ContentType: input.contentType,
+			}),
+		);
+
+		return {
+			objectKey,
+			originalName: sanitizeFilename(input.filename),
+			contentType: input.contentType,
+			size: input.body.byteLength,
+		};
+	}
+
+	async function headObject(objectKey: string) {
+		const result = await client.send(
+			new HeadObjectCommand({
+				Bucket: config.S3_BUCKET,
+				Key: objectKey,
+			}),
+		);
+
+		return {
+			objectKey,
+			contentType: result.ContentType ?? "application/octet-stream",
+			size: result.ContentLength ?? 0,
+			etag: result.ETag,
+		};
+	}
+
+	async function getDownloadUrl(objectKey: string, filename?: string) {
+		return getSignedUrl(
+			client,
+			new GetObjectCommand({
+				Bucket: config.S3_BUCKET,
+				Key: objectKey,
+				ResponseContentDisposition: filename
+					? `attachment; filename="${sanitizeFilename(filename)}"`
+					: undefined,
+			}),
+			{ expiresIn: config.S3_DOWNLOAD_URL_EXPIRE_IN ?? 300 },
+		);
+	}
+
+	function getPublicUrl(objectKey: string) {
+		console.log(objectKey);
+		if (!config.S3_PUBLIC_BASE_URL) {
+			throw new Error("Public URLs are not configured");
+		}
+
+		const base = config.S3_PUBLIC_BASE_URL.endsWith("/")
+			? config.S3_PUBLIC_BASE_URL
+			: `${config.S3_PUBLIC_BASE_URL}/`;
+
+		const encodedKey = objectKey.split("/").map(encodeURIComponent).join("/");
+
+		return new URL(encodedKey, base).toString();
+	}
+
+	async function deleteObject(objectKey: string) {
+		await client.send(
+			new DeleteObjectCommand({
+				Bucket: config.S3_BUCKET,
+				Key: objectKey,
+			}),
+		);
+	}
+
+	return {
+		createPreassignedUpload,
+		uploadBuffer,
+		headObject,
+		getDownloadUrl,
+		getPublicUrl,
+		deleteObject,
+	};
+}
+
+
+===== ./src/validation.ts =====
+
+import { fileTypeFromBuffer } from "file-type";
+
+const ALLOWED_TYPES = new Set([
+	"image/jpeg",
+	"image/png",
+	"image/webp",
+	"image/gif",
+	"image/avif",
+	"application/pdf",
+	"text/plain",
+	"text/csv",
+]);
+
+export function validateFileMetadata(input: {
+	contentType: string;
+	size: number;
+	maxSize: number;
+}) {
+	if (!ALLOWED_TYPES.has(input.contentType)) {
+		throw new Error("File type not allowed");
+	}
+
+	if (
+		!Number.isSafeInteger(input.size) ||
+		input.size <= 0 ||
+		input.size > input.maxSize
+	) {
+		throw new Error("Invalid file size");
+	}
+}
+
+export async function validateFileBuffer(
+	buffer: Uint8Array,
+	declaredType: string,
+) {
+	const detected = await fileTypeFromBuffer(buffer);
+
+	if (detected && detected.mime !== declaredType) {
+		throw new Error("File content does not match declared MIME type");
+	}
+
+	if (!detected && !declaredType.startsWith("text/")) {
+		throw new Error("Unable to verify file signature");
+	}
+
+	if (declaredType.startsWith("text/")) {
+		const text = new TextDecoder("utf-8", { fatal: true }).decode(buffer);
+
+		if (text.includes("\0")) {
+			throw new Error("Invalid text file");
+		}
+	}
+}
+
+
+===== ./src/cleanup.ts =====
+
+// packages/storage/src/cleanup.ts
+
+export type CleanupCandidate = {
+	id: string;
+	objectKey: string;
+};
+
+export type StorageCleanupRepository = {
+	claimOrphans(input: {
+		olderThan: Date;
+		limit: number;
+	}): Promise<CleanupCandidate[]>;
+
+	markDeleted(id: string): Promise<void>;
+
+	markDeleteFailed(id: string, error: string): Promise<void>;
+};
+
+export async function cleanupOrphanedObjects(input: {
+	storage: {
+		deleteObject(key: string): Promise<void>;
+	};
+	repository: StorageCleanupRepository;
+	olderThan: Date;
+	limit?: number;
+}) {
+	const candidates = await input.repository.claimOrphans({
+		olderThan: input.olderThan,
+		limit: input.limit ?? 100,
+	});
+
+	const results = {
+		deleted: 0,
+		failed: 0,
+	};
+
+	for (const candidate of candidates) {
+		try {
+			await input.storage.deleteObject(candidate.objectKey);
+			await input.repository.markDeleted(candidate.id);
+			results.deleted++;
+		} catch (error) {
+			results.failed++;
+
+			await input.repository.markDeleteFailed(
+				candidate.id,
+				error instanceof Error ? error.message : "Unknown storage error",
+			);
+		}
+	}
+
+	return results;
+}
+
+
+===== ./src/types.ts =====
+
+import type z from "zod";
+import type { loadStorageSchema } from "./config";
+
+export type StorageConfig = z.infer<typeof loadStorageSchema>;
+
+export type PresignedUploadInput = {
+	filename: string;
+	contentType: string;
+	size: number;
+	prefix?: string;
+};
+
+export type PresignedUploadResult = {
+	objectKey: string;
+	uploadUrl: string;
+	expiresIn: number;
+	originalName: string;
+	contentType: string;
+	size: number;
+};
+
+export type StoredObject = {
+	objectKey: string;
+	contentType: string;
+	size: number;
+	etag?: string;
+};
+
+
+===== ./src/index.ts =====
+
+export type {
+	CleanupCandidate,
+	StorageCleanupRepository,
+} from "./cleanup";
+export { cleanupOrphanedObjects } from "./cleanup";
+
+export { loadStorageConfig } from "./config";
+
+export {
+	createObjectKey,
+	sanitizeFilename,
+} from "./keys";
+
+export { createStorageService } from "./storage.services";
+
+export type {
+	PresignedUploadInput,
+	PresignedUploadResult,
+	StorageConfig,
+	StoredObject,
+} from "./types";
+
+export { createStorage } from "./uploads";
+
+
+===== ./src/client.ts =====
+
+import { S3Client } from "@aws-sdk/client-s3";
+import type { StorageConfig } from "./types";
+
+export function createS3Client(config: StorageConfig) {
+	return new S3Client({
+		region: config.S3_REGION,
+		endpoint: config.S3_ENDPOINT,
+		forcePathStyle: config.S3_FORCE_PATH_STYLE,
+		credentials: {
+			accessKeyId: config.S3_ACCESS_KEY_ID,
+			secretAccessKey: config.S3_SECRET_ACCESS_KEY,
+		},
+	});
+}
+
+
+===== ./tests/keys.test.ts =====
+
+import { describe, expect, test } from "bun:test";
+import { createObjectKey, sanitizeFilename } from "../src";
+
+describe("sanitize file name", () => {
+	test("remove acentos e normaliza nome", () => {
+		expect(sanitizeFilename("relatório.pdf")).toBe("relatorio.pdf");
+	});
+	test("substitui separadores de caminho e caracteres inválidos", () => {
+		expect(sanitizeFilename("../../meu arquivo?.pdf")).toBe("meu_arquivo_.pdf");
+	});
+	test("remove pontos e separadores nas extremidades", () => {
+		expect(sanitizeFilename("..arquivo..")).toBe("arquivo");
+		expect(sanitizeFilename("___arquivo___")).toBe("arquivo");
+	});
+	test("retorna file quando o nome fica vazio", () => {
+		expect(sanitizeFilename("...")).toBe("file");
+		expect(sanitizeFilename("")).toBe("file");
+	});
+	test("limita o nome a 180 caracteres", () => {
+		expect(sanitizeFilename("a".repeat(200))).toHaveLength(180);
+	});
+});
+
+describe("createObjectKey", () => {
+	test("gera chave com prefixo padrão, UUID e nome sanitizado", () => {
+		const key = createObjectKey("relatório.pdf");
+		console.log("KEY", key);
+		const parts = key.split("/");
+
+		expect(parts).toHaveLength(3);
+		expect(parts[0]).toBe("uploads");
+		expect(parts[1]).toMatch(
+			/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+		);
+		expect(parts[2]).toBe("relatorio.pdf");
+	});
+
+	test("normaliza prefixos personalizados", () => {
+		const key = createObjectKey("foto.png", "/users/teste/");
+		expect(key.startsWith("users/teste/")).toBe(true);
+		expect(key.endsWith("/foto.png")).toBe(true);
+	});
+
+	test("usa uploads quando o prefixo não contém partes válidas", () => {
+		const key = createObjectKey("foto.png", "///");
+		expect(key.startsWith("uploads/")).toBe(true);
+	});
+
+	test("gera chaves diferentes para chamadas distintas", () => {
+		const first = createObjectKey("foto.png");
+		const second = createObjectKey("foto.png");
+
+		expect(first).not.toBe(second);
+	});
+});
+
+
+===== ./tests/validation.test.ts =====
+
+import { describe, expect, test } from "bun:test";
+import { validateFileBuffer, validateFileMetadata } from "../src/validation";
+
+describe("validateFileMetadata", () => {
+	const maxSize = 1024;
+
+	test.each([
+		"image/jpeg",
+		"image/png",
+		"image/webp",
+		"image/gif",
+		"image/avif",
+		"application/pdf",
+		"text/plain",
+		"text/csv",
+	])("aceita o MIME type %s", (contentType) => {
+		expect(() =>
+			validateFileMetadata({
+				contentType,
+				size: 100,
+				maxSize,
+			}),
+		).not.toThrow();
+	});
+
+	test("rejeita tipos não permitidos", () => {
+		expect(() =>
+			validateFileMetadata({
+				contentType: "application/x-executable",
+				size: 100,
+				maxSize,
+			}),
+		).toThrow("File type not allowed");
+	});
+
+	test.each([0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY])(
+		"rejeita tamanho inválido: %s",
+		(size) => {
+			expect(() =>
+				validateFileMetadata({
+					contentType: "text/plain",
+					size,
+					maxSize,
+				}),
+			).toThrow("Invalid file size");
+		},
+	);
+
+	test("rejeita arquivo maior que o limite", () => {
+		expect(() =>
+			validateFileMetadata({
+				contentType: "text/plain",
+				size: maxSize + 1,
+				maxSize,
+			}),
+		).toThrow("Invalid file size");
+	});
+
+	test("aceita arquivo exatamente no limite", () => {
+		expect(() =>
+			validateFileMetadata({
+				contentType: "text/plain",
+				size: maxSize,
+				maxSize,
+			}),
+		).not.toThrow();
+	});
+});
+
+describe("validateFileBuffer", () => {
+	test("aceita texto UTF-8 válido", () => {
+		const buffer = new TextEncoder().encode("Olá, mundo!");
+
+		expect(validateFileBuffer(buffer, "text/plain")).resolves.toBeUndefined();
+	});
+
+	test("rejeita conteúdo textual com byte nulo", () => {
+		const buffer = new Uint8Array([65, 0, 66]);
+
+		expect(validateFileBuffer(buffer, "text/plain")).rejects.toThrow(
+			"Invalid text file",
+		);
+	});
+
+	test("rejeita texto com UTF-8 inválido", () => {
+		const buffer = new Uint8Array([0xc3, 0x28]);
+
+		expect(validateFileBuffer(buffer, "text/plain")).rejects.toThrow();
+	});
+
+	test("rejeita assinatura binária incompatível com o MIME declarado", () => {
+		// Assinatura PNG válida.
+		const png = new Uint8Array([
+			0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d,
+			0x49, 0x48, 0x44, 0x52,
+		]);
+
+		expect(validateFileBuffer(png, "image/jpeg")).rejects.toThrow(
+			"File content does not match declared MIME type",
+		);
+	});
+
+	test("rejeita conteúdo binário sem assinatura reconhecível", () => {
+		const buffer = new Uint8Array([1, 2, 3, 4, 5]);
+
+		expect(validateFileBuffer(buffer, "application/pdf")).rejects.toThrow(
+			"Unable to verify file signature",
+		);
+	});
+});
+
+
+===== ./tests/upload.service.test.ts =====
+
+import { afterAll, describe, expect, test } from "bun:test";
+import { db, eq, schema } from "@fieldlink/database";
+import {
+	confirmStorageUpload,
+	createPendingStorageObject,
+	findStorageObjectById,
+	markStorageUploadFailed,
+} from "@fieldlink/database/storage";
+import { fetch } from "bun";
+import { storageService } from "../main";
+import { createStorage, loadStorageConfig } from "../src";
+
+const enabled = process.env.RUN_STORAGE_INTEGRATION === "true";
+
+describe.skipIf(!enabled)("storage service — S3 real", () => {
+	const config = loadStorageConfig({
+		...process.env,
+		S3_BUCKET: process.env.S3_BUCKET ?? process.env.S3_BUCKET,
+	});
+	const service = storageService;
+
+	let objectKey: string | undefined;
+	let recordId: string | undefined;
+
+	// 	afterAll(async () => {
+	// 		if (objectKey) {
+	// 			await storage.deleteObject(objectKey);
+	// 		}
+	//
+	// 		if (recordId) {
+	// 			await db
+	// 				.delete(schema.storageObjects)
+	// 				.where(eq(schema.storageObjects.id, recordId));
+	// 		}
+	// 	});
+
+	test("envia arquivo ao bucket e confirma o registro no banco", async () => {
+		const content = "Teste de integração do storage\n";
+		const body = new TextEncoder().encode(content);
+
+		const result = await service.uploadBuffer({
+			filename: "integration-test.txt",
+			contentType: "text/plain",
+			body,
+			prefix: "integration-tests",
+		});
+
+		objectKey = result.objectKey;
+		recordId = result.id;
+
+		// Confirma que o objeto existe de verdade no bucket.
+		// 		const uploaded = await storage.headObject(result.objectKey);
+		//
+		// 		expect(uploaded.size).toBe(body.byteLength);
+		// 		expect(uploaded.contentType).toBe("text/plain");
+		//
+		// 		// Confirma o estado persistido no banco.
+		// 		const record = await findStorageObjectById(result.id);
+		//
+		// 		expect(record).not.toBeNull();
+		// 		expect(record?.objectKey).toBe(result.objectKey);
+		// 		expect(record?.expectedSize).toBe(body.byteLength);
+		// 		expect(record?.status).toBe("ACTIVE");
+	}, 30_000);
+});
+
+describe.skipIf(!enabled)("storage - URL presigned (S3 real)", () => {
+	const config = loadStorageConfig({
+		...process.env,
+	});
+	const storage = createStorage(config);
+
+	test("upload via URL", async () => {
+		const content = "conteudo via presigned\n";
+		const body = new TextEncoder().encode(content);
+
+		const upload = await storage.createPresignedUpload({
+			filename: "presigned.txt",
+			contentType: "text/plain",
+			size: body.byteLength,
+			prefix: "integration-testes",
+		});
+
+		const put = await fetch(upload.uploadUrl, {
+			method: "PUT",
+			headers: { "Content-Type": "text/plain" },
+		});
+
+		expect(put.status).toBe(200);
+
+		const downloadUrl = await storage.getDownloadUrl(
+			upload.objectKey,
+			"baixado.txt",
+		);
+		const res = await fetch(downloadUrl);
+		console.log(downloadUrl);
+		expect(res.status).toBe(200);
+	}, 30_000);
+
+	test("PUT com contentType diferente do assinado é rejeitado", async () => {
+		const upload = await storage.createPresignedUpload({
+			filename: "errado.txt",
+			contentType: "text/plain",
+			size: 5,
+			prefix: "integration-tests",
+		});
+		const put = await fetch(upload.uploadUrl, {
+			method: "PUT",
+			headers: { "Content-Type": "application/pdf" },
+			body: "teste",
+		});
+		expect(put.status).toBe(200);
+	}, 30_000);
+
+	test("download de chave inexistente retorna 404", async () => {
+		const url = await storage.getDownloadUrl(
+			"integration-tests/nao/existe.txt",
+		);
+		const res = await fetch(url);
+
+		expect(res.status).toBe(404);
+	}, 30_000);
+});
+
+
+===== ./tests/upload.test.ts =====
+
+import { describe, expect, test } from "bun:test";
+import type { StorageConfig } from "../src/types";
+import { createStorage } from "../src/uploads";
+
+const config: StorageConfig = {
+	bucket: "test-bucket",
+	region: "us-east-1",
+	accessKeyId: "test-access-key",
+	secretAccessKey: "test-secret-key",
+	maxFileSizeBytes: 1024,
+	uploadUrlExpiresIn: 120,
+	downloadUrlExpiresIn: 180,
+};
+
+describe("createStorage", () => {
+	test("gera URL pré-assinada para upload", async () => {
+		const storage = createStorage(config);
+
+		const result = await storage.createPresignedUpload({
+			filename: "relatório.pdf",
+			contentType: "application/pdf",
+			size: 100,
+		});
+
+		expect(result.uploadUrl).toStartWith("https://");
+		expect(result.objectKey).toMatch(/^uploads\/[0-9a-f-]+\/relatorio\.pdf$/i);
+		expect(result.originalName).toBe("relatorio.pdf");
+		expect(result.contentType).toBe("application/pdf");
+		expect(result.size).toBe(100);
+		expect(result.expiresIn).toBe(120);
+	});
+
+	test("usa o prefixo personalizado na chave", async () => {
+		const storage = createStorage(config);
+
+		const result = await storage.createPresignedUpload({
+			filename: "foto.png",
+			contentType: "image/png",
+			size: 100,
+			prefix: "users/123",
+		});
+
+		expect(result.objectKey).toMatch(/^users\/123\/[0-9a-f-]+\/foto\.png$/i);
+	});
+
+	test("rejeita MIME type não permitido", async () => {
+		const storage = createStorage(config);
+
+		await expect(
+			storage.createPresignedUpload({
+				filename: "script.exe",
+				contentType: "application/x-executable",
+				size: 100,
+			}),
+		).rejects.toThrow("File type not allowed");
+	});
+
+	test("rejeita arquivo maior que o limite configurado", async () => {
+		const storage = createStorage(config);
+
+		await expect(
+			storage.createPresignedUpload({
+				filename: "grande.pdf",
+				contentType: "application/pdf",
+				size: 1025,
+			}),
+		).rejects.toThrow("Invalid file size");
+	});
+
+	test("rejeita tamanho zero", async () => {
+		const storage = createStorage(config);
+
+		await expect(
+			storage.createPresignedUpload({
+				filename: "vazio.pdf",
+				contentType: "application/pdf",
+				size: 0,
+			}),
+		).rejects.toThrow("Invalid file size");
+	});
+
+	test("gera URL pública codificando cada segmento da chave", () => {
+		const storage = createStorage({
+			...config,
+			publicBaseUrl: "https://cdn.example.com/files",
+		});
+
+		expect(storage.getPublicUrl("uploads/user 1/arquivo.pdf")).toBe(
+			"https://cdn.example.com/files/uploads/user%201/arquivo.pdf",
+		);
+	});
+
+	test("aceita base URL terminada em barra", () => {
+		const storage = createStorage({
+			...config,
+			publicBaseUrl: "https://cdn.example.com/files/",
+		});
+
+		expect(storage.getPublicUrl("uploads/arquivo.pdf")).toBe(
+			"https://cdn.example.com/files/uploads/arquivo.pdf",
+		);
+	});
+
+	test("falha se a URL pública não estiver configurada", () => {
+		const storage = createStorage(config);
+
+		expect(() => storage.getPublicUrl("uploads/arquivo.pdf")).toThrow(
+			"Public URLs are not configured",
+		);
+	});
+
+	test("rejeita upload binário com assinatura inválida", async () => {
+		const storage = createStorage(config);
+
+		await expect(
+			storage.uploadBuffer({
+				filename: "arquivo.pdf",
+				contentType: "application/pdf",
+				body: new Uint8Array([1, 2, 3, 4]),
+			}),
+		).rejects.toThrow("Unable to verify file signature");
+	});
+
+	test("rejeita upload cujo conteúdo não corresponde ao MIME", async () => {
+		const storage = createStorage(config);
+
+		const png = new Uint8Array([
+			0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d,
+			0x49, 0x48, 0x44, 0x52,
+		]);
+
+		await expect(
+			storage.uploadBuffer({
+				filename: "arquivo.jpg",
+				contentType: "image/jpeg",
+				body: png,
+			}),
+		).rejects.toThrow("File content does not match declared MIME type");
+	});
+});
+
+
+===== ./tests/url.test.ts =====
+
+import { describe, expect, test } from "bun:test";
+import { loadStorageConfig } from "@/config";
+import type { StorageConfig } from "@/types";
+import { createStorage } from "@/uploads";
+
+const baseConfig: StorageConfig = loadStorageConfig(process.env);
+
+describe("get download URL", () => {
+	test("gera URL assinada com a chave e expiração configurada", async () => {
+		const storage = createStorage({ ...baseConfig, ...process.env });
+
+		const url = new URL(
+			await storage.getDownloadUrl("uploads/abc/relatorio.pdf"),
+		);
+
+		console.log(url);
+		expect(url.protocol).toBe("https:");
+		expect(url.pathname).toContain("uploads/abc/relatorio.pdf");
+		expect(url.searchParams.get("X-Amz-Expires")).toBe("300");
+		expect(url.searchParams.get("X-Amz-Algorithm")).toBe("AWS4-HMAC-SHA256");
+		expect(url.searchParams.get("X-Amz-Signature")).toBeTruthy();
+	});
+});
+
+
+===== ./tests/config.test.ts =====
+
+import { describe, expect, test } from "bun:test";
+import { loadStorageConfig } from "../src";
+
+describe("Load storage config", () => {
+	test("Load config", () => {
+		const config = loadStorageConfig({
+			S3_ENDPOINT: "https://minio.fieldlink.net.br",
+			S3_BUCKET: "fieldlink",
+			S3_ACCESS_KEY_ID: "DuYhoWugpSplrLDKF3qU",
+			S3_SECRET_ACCESS_KEY: "Z7hcoTWGayybYjQTOvq8EH6OmJVdiIKkj2poDp2V",
+		});
+
+		expect(config.S3_BUCKET).toBe("fieldlink");
+		expect(config.S3_ACCESS_KEY_ID).toBe("DuYhoWugpSplrLDKF3qU");
+		expect(config.S3_SECRET_ACCESS_KEY).toBe(
+			"Z7hcoTWGayybYjQTOvq8EH6OmJVdiIKkj2poDp2V",
+		);
+	});
+});
+
+
+===== ./main.ts =====
+
+import {
+	confirmStorageUpload,
+	createPendingStorageObject,
+	findStorageObjectById,
+	markStorageUploadFailed,
+} from "@fieldlink/database/storage";
+
+import { createStorage, loadStorageConfig } from "./src";
+
+import { createStorageService } from "./src/storage.services";
+
+export const storageService = createStorageService({
+	storage: createStorage(
+		loadStorageConfig({
+			...process.env,
+			S3_BUCKET: process.env.S3_BUCKET ?? process.env.S3_BUCKET,
+		}),
+	),
+	repository: {
+		createPendingStorageObject: createPendingStorageObject,
+		markStorageUploadFailed: markStorageUploadFailed,
+		findStorageObjectById: findStorageObjectById,
+		confirmStorageUpload: confirmStorageUpload,
+	},
+});
+
+
+===== ./tsconfig.json =====
+
+{
+	"compilerOptions": {
+		"strict": true,
+		"moduleResolution": "bundler",
+		"resolveJsonModule": true,
+		"types": ["bun"],
+		"module": "ESNext",
+		"target": "ES2022",
+		"baseUrl": ".",
+		"paths": {
+			"@/*": ["./src/*"]
+		}
+	},
+	"include": ["src/**/*.ts", "tests/**/*", "src/**/*.tsx"]
+}
+
+
+===== ./.sh =====
+
+ find . -type f \
+  -not -path './.git/*' \
+  -not -path './node_modules/*' \
+  -not -path './dist/*' \
+  -not -name 'contexto.txt' \
+  -not -name 'package-lock.json' \
+  -not -name 'pnpm-lock.yaml' \
+  -not -name 'yarn.lock' \
+  -print0 |
+while IFS= read -r -d '' f; do
+  if file --mime-encoding "$f" | grep -qv 'charset=binary'; then
+    printf '\n\n===== %s =====\n\n' "$f"
+    cat "$f"
+  fi
+done > contexto.txt
+
+
+===== ./.env =====
+
+S3_ENDPOINT="https://minio.fieldlink.net.br"
+S3_REGION="br-centro-oeste-mt"
+S3_BUCKET="fieldlink"
+S3_ACCESS_KEY_ID="DuYhoWugpSplrLDKF3qU"
+S3_SECRET_ACCESS_KEY="Z7hcoTWGayybYjQTOvq8EH6OmJVdiIKkj2poDp2V"
+S3_FORCE_PATH_STYLE=true
+DATABASE_URL="postgresql://root:6t666GegibIkQU8eOAR00E9qudLG4y7p@server:5432/fieldlink"
+
+RUN_STORAGE_INTEGRATION=true
+
+
+===== ./package.json =====
+
+{
+	"name": "@fieldlink/storage",
+	"private": "true",
+	"version": "0.0.0",
+	"dependencies": {
+		"@aws-sdk/client-s3": "^3.1152.0",
+		"@aws-sdk/s3-request-presigner": "^3.1152.0",
+		"@fieldlink/database": "workspace:*",
+		"file-type": "^22.2.0",
+		"zod": "^4.6.7"
+	},
+	"exports": {
+		".": "./main.ts"
+	}
+}

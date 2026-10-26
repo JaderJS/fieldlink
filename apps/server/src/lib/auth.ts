@@ -2,6 +2,7 @@ import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { db, schema } from "@fieldlink/database";
 import { betterAuth } from "better-auth";
 import { openAPI } from "better-auth/plugins";
+import { env } from "../env";
 
 export const auth = betterAuth({
 	database: drizzleAdapter(db, {
@@ -25,30 +26,24 @@ export const auth = betterAuth({
 		revokeSessionsOnPasswordReset: true,
 	},
 	advanced: {
-		// useSecureCookies: true,
-		// crossSubDomainCookies: {
-		// 	enabled: true,
-		// 	domain: ".fieldlink.net.br",
-		// },
-		//
-		useSecureCookies: true,
-
-		crossSubDomainCookies: {
-			enabled: true,
-			domain: ".fieldlink.net.br",
-		},
-
-		cookies: {
-			session_token: {
-				attributes: {
-					domain: ".fieldlink.net.br",
-					path: "/",
-					httpOnly: true,
-					secure: true,
-					sameSite: "lax",
+		...(!env.DEV && {
+			useSecureCookies: true,
+			crossSubDomainCookies: {
+				enabled: true,
+				domain: ".fieldlink.net.br",
+			},
+			cookies: {
+				session_token: {
+					attributes: {
+						domain: ".fieldlink.net.br",
+						path: "/",
+						httpOnly: true,
+						secure: true,
+						sameSite: "lax",
+					},
 				},
 			},
-		},
+		}),
 
 		database: {
 			generateId: false,

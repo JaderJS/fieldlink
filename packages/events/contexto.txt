@@ -1,0 +1,318 @@
+
+
+===== ./src/aggregate.ts =====
+
+import { ConcurrencyError } from "./errors";
+import type { EventStore } from "./store";
+import type {
+	Aggregate,
+	DomainEvent,
+	EventMetadata,
+	StoredEvent,
+} from "./types";
+
+export async function loadAggregate<S, E extends DomainEvent>(
+	store: EventStore,
+	aggregate: Aggregate<S, E>,
+	streamId: string,
+	opts: { toVersion?: number; asOf?: Date } = {},
+): Promise<{ state: S; version: number }> {
+	const history = await store.load<E>(aggregate.streamType, streamId, opts);
+	const state = history.reduce<S>(
+		(s, e) => aggregate.evolve(s, e),
+		aggregate.initialState(),
+	);
+	return { state, version: history.at(-1)?.version ?? 0 };
+}
+
+export async function execute<S, E extends DomainEvent>(
+	store: EventStore,
+	aggregate: Aggregate<S, E>,
+	streamId: string,
+	decide: (state: S) => E[],
+	options: { metadata?: EventMetadata; maxRetries?: number } = {},
+): Promise<StoredEvent<E>[]> {
+	const maxRetries = options.maxRetries ?? 3;
+
+	for (let attempt = 0; ; attempt++) {
+		const { state, version } = await loadAggregate(store, aggregate, streamId);
+
+		const newEvents = decide(state);
+
+		try {
+			return await store.append({
+				streamType: aggregate.streamType,
+				streamId: streamId,
+				expectedVersion: version,
+				events: newEvents,
+				metadata: options.metadata,
+			});
+		} catch (error) {
+			if (error instanceof ConcurrencyError && attempt < maxRetries) continue;
+			throw error;
+		}
+	}
+}
+
+
+===== ./src/store.ts =====
+
+import { and, asc, eq, gt, lte, schema } from "@fieldlink/database";
+import { ConcurrencyError } from "./errors";
+import type {
+	Db,
+	DomainEvent,
+	EventMetadata,
+	Projection,
+	StoredEvent,
+} from "./types";
+
+type EventRow = typeof schema.events.$inferSelect;
+
+function toStored<E extends DomainEvent>(row: EventRow): StoredEvent<E> {
+	return {
+		type: row.type,
+		payload: row.payload,
+		position: row.position,
+		id: row.id,
+		streamType: row.streamType,
+		streamId: row.streamId,
+		version: row.version,
+		metadata: row.metadata,
+		occurredAt: row.occurredAt,
+	} as unknown as StoredEvent<E>;
+}
+
+export interface AppendInput<E extends DomainEvent> {
+	streamType: string;
+	streamId: string;
+
+	expectedVersion: number;
+	events: E[];
+	metadata?: EventMetadata;
+}
+
+function isUniqueViolation(err: unknown): boolean {
+	const e = err as { code?: string; cause?: { code?: string } } | null;
+	return e?.code === "23505" || e?.cause?.code === "23505";
+}
+
+export class EventStore {
+	private readonly projections: Projection[] = [];
+
+	constructor(private readonly db: Db) {}
+
+	registerProjection(projection: Projection): this {
+		this.projections.push(projection);
+		return this;
+	}
+
+	async append<E extends DomainEvent>(
+		input: AppendInput<E>,
+	): Promise<StoredEvent<E>[]> {
+		const { streamType, streamId, expectedVersion, metadata = {} } = input;
+
+		if (input.events.length === 0) return [];
+
+		return this.db.transaction(async (tx) => {
+			let rows: EventRow[];
+
+			try {
+				rows = await tx
+					.insert(schema.events)
+					.values(
+						input.events.map((e, i) => ({
+							streamType,
+							streamId,
+							version: expectedVersion + i + 1,
+							type: e.type,
+							payload: e.payload,
+							metadata,
+						})),
+					)
+					.returning();
+			} catch (error) {
+				if (isUniqueViolation(error)) {
+					throw new ConcurrencyError(streamType, streamId, expectedVersion);
+				}
+
+				throw error;
+			}
+			const stored = rows
+				.sort((a, b) => a.version - b.version)
+				.map((r) => toStored<E>(r));
+
+			for (const projection of this.projections) {
+				if (
+					projection.streamType &&
+					!projection.streamType.includes(streamType)
+				) {
+					continue;
+				}
+				for (const event of stored) await projection.handle(event, tx);
+			}
+			return stored;
+		});
+	}
+
+	async load<E extends DomainEvent>(
+		streamType: string,
+		streamId: string,
+		opts: { toVersion?: number; asOf?: Date } = {},
+	): Promise<StoredEvent<E>[]> {
+		const conditions = [
+			eq(schema.events.streamType, streamType),
+			eq(schema.events.streamId, streamId),
+		];
+
+		if (opts.toVersion !== undefined)
+			conditions.push(lte(schema.events.version, opts.toVersion));
+
+		if (opts.asOf !== undefined)
+			conditions.push(lte(schema.events.occurredAt, opts.asOf));
+
+		const rows = await this.db
+			.select()
+			.from(schema.events)
+			.where(and(...conditions))
+			.orderBy(schema.events.version);
+
+		return rows.map((r) => toStored<E>(r));
+	}
+
+	async *readAll<E extends DomainEvent>(opts: {
+		streamType?: string;
+		batchSize?: number;
+	}): AsyncGenerator<StoredEvent<E>> {
+		const batchSize = opts.batchSize ?? 500;
+		let after = 0;
+		while (true) {
+			const rows = await this.db
+				.select()
+				.from(schema.events)
+				.where(
+					and(
+						gt(schema.events.position, after),
+						opts.streamType
+							? eq(schema.events.streamType, opts.streamType)
+							: undefined,
+					),
+				)
+				.orderBy(asc(schema.events.position))
+				.limit(batchSize);
+
+			if (rows.length === 0) return;
+
+			for (const row of rows) yield toStored<E>(row);
+
+			after = rows[rows.length - 1]!.position;
+		}
+	}
+}
+
+
+===== ./src/types.ts =====
+
+import type { PostgresJsDatabase } from "@fieldlink/database";
+
+export type Db = PostgresJsDatabase;
+export type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
+
+export type EventMetadata = Record<string, unknown>;
+
+export interface DomainEvent<
+	TType extends string = string,
+	TPayload = unknown,
+> {
+	type: TType;
+	payload: TPayload;
+}
+
+export type StoredEvent<E extends DomainEvent = DomainEvent> = E & {
+	position: number;
+	id: string;
+	streamType: string;
+	streamId: string;
+	version: number;
+	metadata: EventMetadata;
+	occuredAt: Date;
+};
+
+export interface Aggregate<S, E extends DomainEvent> {
+	streamType: string;
+	initialState: () => S;
+	evolve: (state: S, event: E) => S;
+}
+
+export interface Projection<E extends DomainEvent = DomainEvent> {
+	name: string;
+	streamType?: string[];
+	handle(event: StoredEvent<E>, tx: Tx): Promise<void>;
+}
+
+
+===== ./src/errors.ts =====
+
+/** Violação de regra de negócio (vira HTTP 422). */
+export class DomainError extends Error {
+	constructor(message: string) {
+		super(message);
+		this.name = new.target.name;
+	}
+}
+
+export class ConcurrencyError extends Error {
+	constructor(
+		public readonly streamType: string,
+		public readonly streamId: string,
+		public readonly expectedVersion: number,
+	) {
+		super(
+			`Conflito de versão em ${streamType}/${streamId} (esperado: ${expectedVersion})`,
+		);
+		this.name = "ConcurrencyError";
+	}
+}
+
+
+===== ./main.ts =====
+
+export * from "./src/aggregate";
+export * from "./src/errors";
+export * from "./src/store";
+
+
+===== ./tsconfig.json =====
+
+{
+	"compilerOptions": {
+		"strict": true,
+		"moduleResolution": "bundler",
+		"resolveJsonModule": true,
+		"types": ["bun"],
+		"module": "ESNext",
+		"target": "ES2022",
+		"baseUrl": ".",
+		"paths": {
+			"@/*": ["./src/*"]
+		}
+	},
+	"include": ["src/**/*.ts", "tests/**/*", "src/**/*.tsx"]
+}
+
+
+===== ./package.json =====
+
+{
+	"name": "@fieldlink/events",
+	"private": "true",
+	"version": "0.0.0",
+	"dependencies": {
+		"@fieldlink/database": "workspace:*",
+		"zod": "^4.6.7"
+	},
+	"exports": {
+		".": "./main.ts",
+		"./types": "./src/types.ts"
+	}
+}

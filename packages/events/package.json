@@ -1,0 +1,13 @@
+{
+	"name": "@fieldlink/events",
+	"private": "true",
+	"version": "0.0.0",
+	"dependencies": {
+		"@fieldlink/database": "workspace:*",
+		"zod": "^4.6.7"
+	},
+	"exports": {
+		".": "./main.ts",
+		"./types": "./src/types.ts"
+	}
+}

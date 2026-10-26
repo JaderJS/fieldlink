@@ -1,10 +1,11 @@
-import type { Customer } from "@fieldlink/database/domain";
-import { Trash } from "lucide-react";
+import { Edit, Trash } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { SelectCustomers } from "../components/select.customers";
+import { UpsertCustomer } from "../components/upsert.customer";
 import { useDeleteCustomer } from "../hooks/use.delete.customer";
 import { FormUpsertCustomer } from "./form.upsert.customer";
 
-export const ViewCustomers = ({ customers }: { customers: Customer[] }) => {
+export const ViewCustomers = ({ customers }: { customers: any[] }) => {
 	const { mutate: deleteCustomerFn } = useDeleteCustomer();
 
 	const handleDelete = (id: string) => {
@@ -14,6 +15,8 @@ export const ViewCustomers = ({ customers }: { customers: Customer[] }) => {
 	return (
 		<div>
 			<h1>Customers</h1>
+
+			<UpsertCustomer>Novo cliente</UpsertCustomer>
 
 			{customers.length === 0 ? (
 				<p>No customers found.</p>
@@ -28,6 +31,9 @@ export const ViewCustomers = ({ customers }: { customers: Customer[] }) => {
 							>
 								<Trash />
 							</Button>
+							<UpsertCustomer customer={customer}>
+								<Edit />
+							</UpsertCustomer>
 						</li>
 					))}
 				</ul>

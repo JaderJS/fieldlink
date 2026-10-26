@@ -1,0 +1,5 @@
+ALTER TABLE "station_channels" RENAME TO "station_to_groups";--> statement-breakpoint
+ALTER TABLE "station_to_groups" RENAME CONSTRAINT "station_channels_channel_id_channels_id_fkey" TO "station_to_groups_channel_id_channel_groups_id_fkey";--> statement-breakpoint
+ALTER TABLE "channel_groups" ADD CONSTRAINT "channel_groups_created_by_users_id_fkey" FOREIGN KEY ("created_by") REFERENCES "users"("id");--> statement-breakpoint
+ALTER TABLE "channel_groups" ADD CONSTRAINT "channel_groups_updated_by_users_id_fkey" FOREIGN KEY ("updated_by") REFERENCES "users"("id");--> statement-breakpoint
+ALTER TABLE "station_to_groups" DROP CONSTRAINT "station_to_groups_channel_id_channel_groups_id_fkey", ADD CONSTRAINT "station_to_groups_channel_id_channel_groups_id_fkey" FOREIGN KEY ("channel_id") REFERENCES "channel_groups"("id");

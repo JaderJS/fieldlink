@@ -14,7 +14,6 @@ export const Route = createFileRoute("/(private)/_protected")({
 		const { data: session, error } = await getServerSession();
 
 		if (error) {
-			console.log(error);
 			throw new Error("Não foi possivel verificar a sessão");
 		}
 
@@ -36,7 +35,7 @@ export const Route = createFileRoute("/(private)/_protected")({
 	component: ProtectedLayout,
 });
 
-export function ErrorLayout({ error }: ErrorComponentProps) {
+function ErrorLayout({ error }: ErrorComponentProps) {
 	return (
 		<div className="flex min-h-screen items-center justify-center p-6">
 			<div className="w-full max-w-md text-center">
@@ -48,7 +47,7 @@ export function ErrorLayout({ error }: ErrorComponentProps) {
 					Não conseguimos recuperar os dados da sessão.
 				</p>
 
-				{import.meta.env.VITE_DEV && (
+				{true && (
 					<pre className="mt-4 overflow-auto rounded-md bg-muted p-4 text-left text-xs">
 						<p>{error instanceof Error ? error.message : String(error)}</p>
 						<p>

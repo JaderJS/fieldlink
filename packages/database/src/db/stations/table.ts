@@ -12,6 +12,7 @@ import {
 	uniqueIndex,
 	uuid,
 } from "drizzle-orm/pg-core";
+import { user } from "../auth/tables";
 import { customers } from "../customers/table";
 import { equipments } from "../equipaments/table";
 
@@ -43,18 +44,14 @@ export const stations = pgTable(
 	"stations",
 	{
 		id: uuid("id").primaryKey().defaultRandom(),
-
 		customerId: uuid("customer_id").notNull(),
-
 		latitude: numeric("latitude", { precision: 10, scale: 7 }),
-
 		longitude: numeric("longitude", { precision: 10, scale: 7 }),
-
 		mode: stationModeEnum("mode").notNull(),
-
 		createdAt: timestamp("created_at").notNull().defaultNow(),
-
-		updatedAt: timestamp("updated_at").notNull().defaultNow(),
+		updatedAt: timestamp("updated_at")
+			.notNull()
+			.$onUpdateFn(() => new Date()),
 	},
 	(table) => [
 		index("stations_customer_idx").on(table.customerId),
@@ -69,23 +66,15 @@ export const stationVersions = pgTable(
 	"station_versions",
 	{
 		id: uuid("id").primaryKey().defaultRandom(),
-
 		stationId: uuid("station_id")
 			.notNull()
 			.references(() => stations.id),
-
 		version: integer("version").notNull(),
-
 		title: text("title").notNull(),
-
 		latitude: numeric("latitude", { precision: 10, scale: 7 }),
-
 		longitude: numeric("longitude", { precision: 10, scale: 7 }),
-
 		mode: stationModeEnum("mode").notNull(),
-
 		changedBy: uuid("changed_by").notNull(),
-
 		changedAt: timestamp("changed_at", {
 			withTimezone: true,
 		})
@@ -108,32 +97,27 @@ export const channels = pgTable(
 	"channels",
 	{
 		id: uuid("id").primaryKey().defaultRandom(),
-
 		customerId: uuid("customer_id")
 			.notNull()
 			.references(() => customers.id),
-
 		title: text("title").notNull(),
-
-		mode: channelModeEnum().notNull(),
-
-		rx: integer("rx").notNull(),
-
-		tx: integer("tx").notNull(),
-
 		description: text("description"),
-
-		createdBy: uuid("created_by").notNull(),
-
-		updatedBy: uuid("updated_by").notNull(),
-
+		mode: channelModeEnum("mode").notNull(),
+		rx: integer("rx").notNull(),
+		tx: integer("tx").notNull(),
+		createdBy: uuid("created_by")
+			.references(() => user.id)
+			.notNull(),
+		updatedBy: uuid("updated_by")
+			.references(() => user.id)
+			.notNull(),
 		createdAt: timestamp("created_at").notNull().defaultNow(),
-
-		updatedAt: timestamp("updated_at").notNull().defaultNow(),
+		updatedAt: timestamp("updated_at")
+			.notNull()
+			.$onUpdateFn(() => new Date()),
 	},
 	(table) => [
 		index("channels_customer_idx").on(table.customerId),
-
 		index("channels_frequency_idx").on(table.rx, table.tx),
 	],
 );
@@ -145,16 +129,14 @@ export const digitalChannels = pgTable("channel_digital", {
 	channelId: uuid("channel_id")
 		.primaryKey()
 		.references(() => channels.id),
-
 	protocol: digitalProtocolEnum().notNull().default("DMR"),
-
 	colorCode: smallint("color_code").notNull(),
-
 	slot: smallint().notNull(),
-
 	talkgroupId: uuid("talkgroup_id").references(() => talkgroups.id),
-
 	createdAt: timestamp("created_at").notNull().defaultNow(),
+	updatedAt: timestamp("updated_at")
+		.notNull()
+		.$onUpdateFn(() => new Date()),
 });
 
 /* -------------------------------------------------------------------------- */
@@ -164,26 +146,23 @@ export const analogChannels = pgTable("channel_analogs", {
 	channelId: uuid("channel_id")
 		.primaryKey()
 		.references(() => channels.id),
-
 	squelchMode: analogSquelchModeEnum("squelch_mode")
 		.notNull()
 		.default("CARRIER"),
-
 	txToneHz: numeric("tx_tone_hz", {
 		precision: 6,
 		scale: 2,
 	}),
-
 	rxToneHz: numeric("rx_tone_hz", {
 		precision: 6,
 		scale: 2,
 	}),
-
 	txDcsCode: integer("tx_dcs_code"),
-
 	rxDcsCode: integer("rx_dcs_code"),
-
 	createdAt: timestamp("created_at").notNull().defaultNow(),
+	updatedAt: timestamp("updated_at")
+		.notNull()
+		.$onUpdateFn(() => new Date()),
 });
 
 /* -------------------------------------------------------------------------- */
@@ -193,29 +172,19 @@ export const channelGroups = pgTable(
 	"channel_groups",
 	{
 		id: uuid().primaryKey().defaultRandom(),
-
 		customerId: uuid("customer_id")
 			.notNull()
 			.references(() => customers.id),
-
 		title: text().notNull(),
-
 		description: text(),
-
-		createdBy: uuid("created_by").notNull(),
-		updatedBy: uuid("updated_by").notNull(),
-
-		createdAt: timestamp("created_at", {
-			withTimezone: true,
-		})
+		createdBy: uuid("created_by")
 			.notNull()
-			.defaultNow(),
-
-		updatedAt: timestamp("updated_at", {
-			withTimezone: true,
-		})
+			.references(() => user.id),
+		updatedBy: uuid("updated_by")
 			.notNull()
-			.defaultNow(),
+			.references(() => user.id),
+		createdAt: timestamp("created_at").notNull().defaultNow(),
+		updatedAt: timestamp("updated_at").notNull().defaultNow(),
 	},
 
 	(table) => [index("channel_groups_customer_idx").on(table.customerId)],
@@ -234,21 +203,14 @@ export const talkgroups = pgTable(
 	"talkgroups",
 	{
 		id: uuid("id").primaryKey().defaultRandom(),
-
 		customerId: uuid("customer_id")
 			.notNull()
 			.references(() => customers.id),
-
 		number: integer("number").notNull(),
-
 		title: text("title").notNull(),
-
 		type: talkgroupTypeEnum().notNull().default("GROUP"),
-
 		description: text("description"),
-
 		createdAt: timestamp("created_at").notNull().defaultNow(),
-
 		updatedAt: timestamp("updated_at").notNull().defaultNow(),
 	},
 
@@ -273,21 +235,16 @@ export const programmingProfiles = pgTable(
 	"programming_profiles",
 	{
 		id: uuid().primaryKey().defaultRandom(),
-
 		equipmentId: uuid("equipment_id")
 			.notNull()
 			.references(() => equipments.id),
-
 		version: integer().notNull(),
-
 		status: programmingStatusEnum("status").notNull().default("DRAFT"),
-
 		description: text("description"),
-
-		createdBy: uuid("created_by").notNull(),
-
+		createdBy: uuid("created_by")
+			.notNull()
+			.references(() => user.id),
 		createdAt: timestamp("created_at").notNull().defaultNow(),
-
 		activatedAt: timestamp("activated_at"),
 	},
 
@@ -310,19 +267,13 @@ export const programmingChannels = pgTable(
 		profileId: uuid("profile_id")
 			.notNull()
 			.references(() => programmingProfiles.id),
-
 		channelId: uuid("channel_id")
 			.notNull()
 			.references(() => channels.id),
-
 		position: integer("position ").notNull(),
-
 		alias: text("alias"),
-
 		scanEnabled: boolean("scan_enabled").notNull().default(false),
-
 		txPower: text("tx_power"),
-
 		createdAt: timestamp("created_at").notNull().defaultNow(),
 	},
 
@@ -344,13 +295,10 @@ export const programmingGroups = pgTable(
 		profileId: uuid("profile_id")
 			.notNull()
 			.references(() => programmingProfiles.id),
-
 		groupId: uuid("group_id")
 			.notNull()
 			.references(() => channelGroups.id),
-
 		position: integer("position"),
-
 		createdAt: timestamp("created_at").notNull().defaultNow(),
 	},
 
@@ -362,34 +310,29 @@ export const programmingGroups = pgTable(
 );
 
 /* -------------------------------------------------------------------------- */
-/* Station <-> Channel                                                        */
+/* Station <-> Groups                                                        */
 /* -------------------------------------------------------------------------- */
-export const stationChannels = pgTable(
-	"station_channels",
+export const stationToGroups = pgTable(
+	"station_to_groups",
 	{
 		stationId: uuid("station_id")
 			.notNull()
 			.references(() => stations.id),
-
-		channelId: uuid("channel_id")
+		channelGroupId: uuid("channel_group_id")
 			.notNull()
-			.references(() => channels.id),
-
+			.references(() => channelGroups.id),
 		position: integer("position"),
-
 		alias: text("alias"),
-
 		enabled: boolean("enabled").notNull().default(true),
-
 		createdAt: timestamp("created_at").notNull().defaultNow(),
 	},
 
 	(table) => [
 		primaryKey({
-			columns: [table.stationId, table.channelId],
+			columns: [table.stationId, table.channelGroupId],
 		}),
 
-		index("station_channels_channel_idx").on(table.channelId),
+		index("station_to_groups_idx").on(table.channelGroupId),
 	],
 );
 
@@ -403,13 +346,10 @@ export const channelGroupChannels = pgTable(
 		groupId: uuid("group_id")
 			.notNull()
 			.references(() => channelGroups.id),
-
 		channelId: uuid("channel_id")
 			.notNull()
 			.references(() => channels.id),
-
 		position: integer(),
-
 		createdAt: timestamp("created_at", {
 			withTimezone: true,
 		})

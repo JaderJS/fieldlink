@@ -1,7 +1,9 @@
 import { and, eq } from "drizzle-orm";
-import { stationChannels, stations } from "../../db";
-import { db } from "../../main";
+import { stations } from "../../db";
+import { db, schema } from "../../main";
 import { NotFoundError } from "./errors";
+
+const stationChannels = schema.stationToGroups;
 
 export interface ICreateStation {
 	customerId: string;
@@ -78,13 +80,13 @@ export async function attachChannelToStation({
 	const [result] = await db
 		.insert(stationChannels)
 		.values({
-			channelId: channelId,
+			channelGroupId: channelId,
 			stationId: stationId,
 			alias: alias,
 			position: order,
 		})
 		.onConflictDoUpdate({
-			target: [stationChannels.stationId, stationChannels.channelId],
+			target: [stationChannels.stationId, stationChannels.channelGroupId],
 			set: {
 				position: order,
 				alias: alias,
@@ -110,7 +112,7 @@ export async function detachChannelStation({
 		.where(
 			and(
 				eq(stationChannels.stationId, stationId),
-				eq(stationChannels.channelId, channelId),
+				eq(stationChannels.channelGroupId, channelId),
 			),
 		);
 }

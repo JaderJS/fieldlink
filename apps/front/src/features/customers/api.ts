@@ -1,11 +1,14 @@
-import { radio } from "@fieldlink/database/domain";
+// import { radio } from "@fieldlink/database/domain";
+
+import { customers } from "@fieldlink/database/stations";
+
 import { queryOptions } from "@tanstack/react-query";
 import { createServerFn } from "@tanstack/react-start";
 import { KEYS } from "@/core/keys";
 
 export const getCustomers = createServerFn({ method: "GET" }).handler(
 	async () => {
-		const r = await radio.customers.getCustomers();
+		const r = await customers.getCustomers();
 		return r;
 	},
 );
@@ -15,14 +18,14 @@ export const getCustomersOPTIONS = queryOptions({
 	queryFn: getCustomers,
 });
 
-type UpsertCustomerInput = Parameters<typeof radio.customers.upsertCustomer>[0];
+type UpsertCustomerInput = Parameters<typeof customers.upsertCustomer>[0];
 
 export const upsertCustomer = createServerFn({
 	method: "POST",
 })
 	.validator((data: UpsertCustomerInput) => data)
 	.handler(async ({ data }) => {
-		return radio.customers.upsertCustomer(data);
+		return customers.upsertCustomer(data);
 	});
 
 export const deleteCustomer = createServerFn({
@@ -30,5 +33,5 @@ export const deleteCustomer = createServerFn({
 })
 	.validator((id: string) => id)
 	.handler(async ({ data }) => {
-		return radio.customers.deleteCustomer(data);
+		return customers.deleteCustomer(data);
 	});

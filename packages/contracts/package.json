@@ -1,0 +1,10 @@
+{
+	"name": "@fieldlink/contracts",
+	"version": "0.0.0",
+	"dependencies": {
+		"zod": "^4.6.5"
+	},
+	"exports": {
+		".": "./src/main.ts"
+	}
+}

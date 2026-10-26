@@ -7,6 +7,7 @@ const env = z
 		DATABASE_URL: z.url().refine((url) => url.startsWith("postgresql://"), {
 			message: "DATABASE_URL must be a PostgreSQL URL",
 		}),
+		DEV: z.coerce.boolean().default(false),
 	})
 	.parse(process.env);
 

@@ -1,6 +1,9 @@
 import { defineRelationsPart } from "drizzle-orm";
 
-import { schema } from "./../../main";
+// import { schema } from "./../../main";
+import * as schema from "./table";
+
+export const stationRelations = defineRelationsPart(schema, (r) => ({}));
 
 // export const stationRelations = defineRelationsPart(schema, (r) => ({
 // 	customers: {

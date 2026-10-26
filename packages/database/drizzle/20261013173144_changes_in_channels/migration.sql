@@ -1,0 +1,2 @@
+ALTER TABLE "channels" ADD CONSTRAINT "channels_created_by_users_id_fkey" FOREIGN KEY ("created_by") REFERENCES "users"("id");--> statement-breakpoint
+ALTER TABLE "channels" ADD CONSTRAINT "channels_updated_by_users_id_fkey" FOREIGN KEY ("updated_by") REFERENCES "users"("id");

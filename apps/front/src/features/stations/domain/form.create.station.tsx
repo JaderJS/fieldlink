@@ -1,10 +1,11 @@
 import { radio } from "@fieldlink/database/domain";
-import { getServerSession } from "@/lib/auth/server";
+import { Button } from "@/components/ui/button";
+import { getServerSession } from "@/lib/auth/functions";
 import { createStation } from "../api/api";
 
 export function FormCreateStation() {
 	const handleCreate = async (
-		data: Parameters<typeof radio.stations.createStation>[0],
+		data: Omit<Parameters<typeof radio.stations.createStation>[0], "actorId">,
 	) => {
 		const { data: session } = await getServerSession();
 		if (!session?.user) {
@@ -20,5 +21,19 @@ export function FormCreateStation() {
 		});
 	};
 
-	return <div>Criar</div>;
+	return (
+		<div>
+			<Button
+				onClick={() =>
+					handleCreate({
+						customerId: "",
+						mode: "ANALOG",
+						title: "abcd",
+					})
+				}
+			>
+				Criar nova estação
+			</Button>
+		</div>
+	);
 }

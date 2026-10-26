@@ -14,6 +14,8 @@ import { Route as privateProtectedRouteRouteImport } from './routes/(private)/_p
 import { Route as publicSignInRouteImport } from './routes/(public)/sign-in'
 import { Route as publicSignUpRouteImport } from './routes/(public)/sign-up'
 import { Route as privateProtectedDashboardRouteImport } from './routes/(private)/_protected/dashboard'
+import { Route as publicDebugIndexRouteImport } from './routes/(public)/debug/index'
+import { Route as privateProtectedChannelsIndexRouteImport } from './routes/(private)/_protected/channels/index'
 import { Route as privateProtectedCustomersIndexRouteImport } from './routes/(private)/_protected/customers/index'
 import { Route as privateProtectedOrdersIndexRouteImport } from './routes/(private)/_protected/orders/index'
 import { Route as privateProtectedOrdersOrderIdRouteImport } from './routes/(private)/_protected/orders/$orderId'
@@ -42,6 +44,17 @@ const privateProtectedDashboardRoute =
   privateProtectedDashboardRouteImport.update({
     id: '/dashboard',
     path: '/dashboard',
+    getParentRoute: () => privateProtectedRouteRoute,
+  } as any)
+const publicDebugIndexRoute = publicDebugIndexRouteImport.update({
+  id: '/(public)/debug/',
+  path: '/debug/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const privateProtectedChannelsIndexRoute =
+  privateProtectedChannelsIndexRouteImport.update({
+    id: '/channels/',
+    path: '/channels/',
     getParentRoute: () => privateProtectedRouteRoute,
   } as any)
 const privateProtectedCustomersIndexRoute =
@@ -74,7 +87,9 @@ export interface FileRoutesByFullPath {
   '/sign-in': typeof publicSignInRoute
   '/sign-up': typeof publicSignUpRoute
   '/dashboard': typeof privateProtectedDashboardRoute
+  '/debug/': typeof publicDebugIndexRoute
   '/orders/$orderId': typeof privateProtectedOrdersOrderIdRoute
+  '/channels/': typeof privateProtectedChannelsIndexRoute
   '/customers/': typeof privateProtectedCustomersIndexRoute
   '/orders/': typeof privateProtectedOrdersIndexRoute
   '/stations/': typeof privateProtectedStationsIndexRoute
@@ -84,7 +99,9 @@ export interface FileRoutesByTo {
   '/sign-in': typeof publicSignInRoute
   '/sign-up': typeof publicSignUpRoute
   '/dashboard': typeof privateProtectedDashboardRoute
+  '/debug': typeof publicDebugIndexRoute
   '/orders/$orderId': typeof privateProtectedOrdersOrderIdRoute
+  '/channels': typeof privateProtectedChannelsIndexRoute
   '/customers': typeof privateProtectedCustomersIndexRoute
   '/orders': typeof privateProtectedOrdersIndexRoute
   '/stations': typeof privateProtectedStationsIndexRoute
@@ -96,7 +113,9 @@ export interface FileRoutesById {
   '/(public)/sign-in': typeof publicSignInRoute
   '/(public)/sign-up': typeof publicSignUpRoute
   '/(private)/_protected/dashboard': typeof privateProtectedDashboardRoute
+  '/(public)/debug/': typeof publicDebugIndexRoute
   '/(private)/_protected/orders/$orderId': typeof privateProtectedOrdersOrderIdRoute
+  '/(private)/_protected/channels/': typeof privateProtectedChannelsIndexRoute
   '/(private)/_protected/customers/': typeof privateProtectedCustomersIndexRoute
   '/(private)/_protected/orders/': typeof privateProtectedOrdersIndexRoute
   '/(private)/_protected/stations/': typeof privateProtectedStationsIndexRoute
@@ -108,7 +127,9 @@ export interface FileRouteTypes {
     | '/sign-in'
     | '/sign-up'
     | '/dashboard'
+    | '/debug/'
     | '/orders/$orderId'
+    | '/channels/'
     | '/customers/'
     | '/orders/'
     | '/stations/'
@@ -118,7 +139,9 @@ export interface FileRouteTypes {
     | '/sign-in'
     | '/sign-up'
     | '/dashboard'
+    | '/debug'
     | '/orders/$orderId'
+    | '/channels'
     | '/customers'
     | '/orders'
     | '/stations'
@@ -129,7 +152,9 @@ export interface FileRouteTypes {
     | '/(public)/sign-in'
     | '/(public)/sign-up'
     | '/(private)/_protected/dashboard'
+    | '/(public)/debug/'
     | '/(private)/_protected/orders/$orderId'
+    | '/(private)/_protected/channels/'
     | '/(private)/_protected/customers/'
     | '/(private)/_protected/orders/'
     | '/(private)/_protected/stations/'
@@ -140,6 +165,7 @@ export interface RootRouteChildren {
   privateProtectedRouteRoute: typeof privateProtectedRouteRouteWithChildren
   publicSignInRoute: typeof publicSignInRoute
   publicSignUpRoute: typeof publicSignUpRoute
+  publicDebugIndexRoute: typeof publicDebugIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -179,6 +205,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof privateProtectedDashboardRouteImport
       parentRoute: typeof privateProtectedRouteRoute
     }
+    '/(public)/debug/': {
+      id: '/(public)/debug/'
+      path: '/debug'
+      fullPath: '/debug/'
+      preLoaderRoute: typeof publicDebugIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/(private)/_protected/channels/': {
+      id: '/(private)/_protected/channels/'
+      path: '/channels'
+      fullPath: '/channels/'
+      preLoaderRoute: typeof privateProtectedChannelsIndexRouteImport
+      parentRoute: typeof privateProtectedRouteRoute
+    }
     '/(private)/_protected/customers/': {
       id: '/(private)/_protected/customers/'
       path: '/customers'
@@ -213,6 +253,7 @@ declare module '@tanstack/react-router' {
 interface privateProtectedRouteRouteChildren {
   privateProtectedDashboardRoute: typeof privateProtectedDashboardRoute
   privateProtectedOrdersOrderIdRoute: typeof privateProtectedOrdersOrderIdRoute
+  privateProtectedChannelsIndexRoute: typeof privateProtectedChannelsIndexRoute
   privateProtectedCustomersIndexRoute: typeof privateProtectedCustomersIndexRoute
   privateProtectedOrdersIndexRoute: typeof privateProtectedOrdersIndexRoute
   privateProtectedStationsIndexRoute: typeof privateProtectedStationsIndexRoute
@@ -221,6 +262,7 @@ interface privateProtectedRouteRouteChildren {
 const privateProtectedRouteRouteChildren: privateProtectedRouteRouteChildren = {
   privateProtectedDashboardRoute: privateProtectedDashboardRoute,
   privateProtectedOrdersOrderIdRoute: privateProtectedOrdersOrderIdRoute,
+  privateProtectedChannelsIndexRoute: privateProtectedChannelsIndexRoute,
   privateProtectedCustomersIndexRoute: privateProtectedCustomersIndexRoute,
   privateProtectedOrdersIndexRoute: privateProtectedOrdersIndexRoute,
   privateProtectedStationsIndexRoute: privateProtectedStationsIndexRoute,
@@ -236,6 +278,7 @@ const rootRouteChildren: RootRouteChildren = {
   privateProtectedRouteRoute: privateProtectedRouteRouteWithChildren,
   publicSignInRoute: publicSignInRoute,
   publicSignUpRoute: publicSignUpRoute,
+  publicDebugIndexRoute: publicDebugIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

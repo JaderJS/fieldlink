@@ -1,18 +1,17 @@
 /// <reference types="vite/client" />
 
-import { QueryClient } from "@tanstack/react-query";
+import type { QueryClient } from "@tanstack/react-query";
 import {
-	createRootRoute,
 	createRootRouteWithContext,
 	HeadContent,
 	Outlet,
 	Scripts,
 } from "@tanstack/react-router";
+import { NuqsAdapter } from "nuqs/adapters/tanstack-router";
 import type { ReactNode } from "react";
 import { GlobalError } from "@/components/global/error";
 import { NotFound } from "@/components/global/notfound";
-import { AppSidebar } from "@/components/global/sidebar/app.sidebar";
-import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { Toaster } from "@/components/ui/toast";
 import css from "../styles/app.css?url";
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
@@ -47,7 +46,10 @@ function RootComponent() {
 	return (
 		<RootDocument>
 			<div className="h-dvh w-full">
-				<Outlet />
+				<NuqsAdapter>
+					<Outlet />
+				</NuqsAdapter>
+				<Toaster />
 			</div>
 		</RootDocument>
 	);

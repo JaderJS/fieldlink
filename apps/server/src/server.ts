@@ -1,11 +1,34 @@
-import cors from "@elysia/cors";
-import { openapi } from "@elysia/openapi";
+import { cors } from "@elysia/cors";
+import cron from "@elysia/cron";
+import { garbageCollectorService } from "@fieldlink/storage";
 import { Elysia } from "elysia";
+import { coreAuth } from "./core/auth/auth";
 import { env } from "./env";
-import { auth, OpenAPI } from "./lib/auth";
+import { handleError } from "./lib/error";
+import { handleStorageObject } from "./lib/upload";
+import { handleChannels } from "./models/channels";
+import { handleCustomers } from "./models/customers";
+import { handleFinances } from "./models/finances";
 
 const app = new Elysia()
-	.get("/", () => "Hello Elysia")
+	.use(handleError)
+	.get("/", () => {
+		msg: "Heellooo my boos!!";
+	})
+	.use(
+		cron({
+			name: "storage-garbage-collector",
+			// pattern: "*/30 * * * * *",
+			pattern: "0 1 0 * * 0",
+			timezone: "America/Cuiaba",
+			async run() {
+				console.info("[STORAGE GARBAGE COLLECTOR] starting...");
+				const msg = await garbageCollectorService.run();
+				console.info(msg);
+				console.info("[STORAGE GARBAGE COLLECTOR] end.");
+			},
+		}),
+	)
 	.use(
 		cors({
 			origin: [
@@ -21,15 +44,11 @@ const app = new Elysia()
 			allowedHeaders: ["Content-Type", "Authorization"],
 		}),
 	)
-	.use(
-		openapi({
-			documentation: {
-				components: await OpenAPI.components,
-				paths: await OpenAPI.getPaths(),
-			},
-		}),
-	)
-	.mount("/auth", auth.handler)
+	.use(coreAuth)
+	.use(handleStorageObject)
+	.use(handleCustomers)
+	.use(handleChannels)
+	.use(handleFinances)
 	.listen(3333);
 
 console.log(

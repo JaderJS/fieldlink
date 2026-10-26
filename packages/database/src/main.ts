@@ -11,3 +11,6 @@ const pool = new Pool({
 export { schema };
 
 export const db = drizzle({ client: pool, relations: relations });
+
+export { and, asc, desc, eq, gt, gte, ilike, lt, lte, or } from "drizzle-orm";
+export type { PostgresJsDatabase } from "drizzle-orm/postgres-js";

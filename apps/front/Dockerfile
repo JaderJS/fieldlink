@@ -9,10 +9,17 @@ WORKDIR /monorepo
 
 COPY package.json bun.lock* ./
 
+# APPS
 COPY apps/business/package.json apps/business/package.json
 COPY apps/front/package.json apps/front/package.json
 COPY apps/server/package.json apps/server/package.json
+
+# PACKAGES
+COPY packages/contracts/package.json packages/contracts/package.json
 COPY packages/database/package.json packages/database/package.json
+COPY packages/events/package.json packages/events/package.json
+COPY packages/inventory/package.json packages/inventory/package.json
+COPY packages/storage/package.json packages/storage/package.json
 
 RUN bun install --frozen-lockfile
 
@@ -31,9 +38,15 @@ ENV NODE_ENV=production
 
 COPY --from=deps /monorepo/node_modules ./node_modules
 COPY --from=deps /monorepo/apps/front/node_modules ./apps/front/node_modules
+COPY --from=deps /monorepo/apps/server/node_modules ./apps/server/node_modules
+
 COPY --from=deps /monorepo/packages/database/node_modules ./packages/database/node_modules
+COPY --from=deps /monorepo/packages/contracts/node_modules ./packages/contracts/node_modules
 
 COPY apps/front ./apps/front
+COPY apps/server ./packages/server
+
+COPY packages/contracts ./packages/contracts
 COPY packages/database ./packages/database
 
 RUN bun run --filter @fieldlink/front build

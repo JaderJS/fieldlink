@@ -1,0 +1,1 @@
+ALTER TABLE "programming_profiles" ADD CONSTRAINT "programming_profiles_created_by_users_id_fkey" FOREIGN KEY ("created_by") REFERENCES "users"("id");
